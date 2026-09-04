@@ -1,0 +1,10 @@
+# Normalize line endings: store LF in the repo, check out LF everywhere.
+# Keeps diffs clean across Windows/macOS/Linux and silences CRLF warnings.
+* text=auto eol=lf
+
+# Never touch binaries (no line-ending or diff munging).
+*.png binary
+*.jpg binary
+*.gif binary
+*.pdf binary
+*.ico binary

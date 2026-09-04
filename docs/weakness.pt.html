@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="Como a chave Wi-Fi padrão de gateways Claro afetados pode ser deduzida apenas do BSSID + SSID transmitidos — normalmente sem handshake. Quais modelos são afetados, e a correção. Exemplos fictícios; apenas uso autorizado/defensivo.">
+<style>html,body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>O SSID Revela a Senha</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --bg:#e7e9f0; --surface:#ffffff; --surface-2:#f3f4f9; --raise:#fbfbfe;
+    --ink:#131828; --muted:#586074; --faint:#8b93a6; --line:#d6dae6;
+    --accent:#b8690a; --accent-ink:#8a4e05; --secret:#0b7d90;
+    --danger:#c22a30; --good:#1f7a4d; --chip:#f0ede4;
+    --shadow:0 1px 2px rgba(20,26,44,.06),0 8px 26px rgba(20,26,44,.08); --maxw:1080px;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#090d18; --surface:#111726; --surface-2:#161d30; --raise:#18203a;
+      --ink:#e9edf6; --muted:#98a1b8; --faint:#6a7492; --line:#25304a;
+      --accent:#f4ad3e; --accent-ink:#f7c477; --secret:#5cd0e2; --danger:#f2565c;
+      --good:#57c98a; --chip:#1a2237;
+      --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 34px rgba(0,0,0,.45);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#090d18; --surface:#111726; --surface-2:#161d30; --raise:#18203a;
+    --ink:#e9edf6; --muted:#98a1b8; --faint:#6a7492; --line:#25304a;
+    --accent:#f4ad3e; --accent-ink:#f7c477; --secret:#5cd0e2; --danger:#f2565c;
+    --good:#57c98a; --chip:#1a2237;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 34px rgba(0,0,0,.45);
+  }
+  *{box-sizing:border-box}
+  body{background:var(--bg); color:var(--ink); font-family:"IBM Plex Sans",system-ui,-apple-system,Segoe UI,Roboto,sans-serif; line-height:1.6; -webkit-font-smoothing:antialiased}
+  .wrap{max-width:var(--maxw); margin-inline:auto; padding-inline:24px}
+  h1,h2,h3{font-family:"Archivo",system-ui,sans-serif; text-wrap:balance; margin:0}
+  code,kbd,.mono{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+  a{color:var(--accent-ink)}
+  .eyebrow{font-family:"IBM Plex Mono",monospace; font-size:12px; letter-spacing:.22em; text-transform:uppercase; color:var(--muted); font-weight:500}
+  .toggle{position:fixed; top:16px; right:16px; z-index:50; display:inline-flex; align-items:center; gap:7px; background:rgba(17,23,38,.7); color:#e9edf6; border:1px solid rgba(255,255,255,.16); backdrop-filter:blur(8px); border-radius:999px; padding:7px 13px; font:500 12px/1 "IBM Plex Mono",monospace; letter-spacing:.06em; cursor:pointer}
+  .toggle:hover{border-color:rgba(255,255,255,.34)}
+  .toggle:focus-visible{outline:2px solid var(--secret); outline-offset:2px}
+
+  .hero{position:relative; overflow:hidden; background:radial-gradient(1100px 520px at 78% -8%, rgba(244,173,62,.16), transparent 60%),radial-gradient(900px 500px at 6% 108%, rgba(92,208,226,.12), transparent 55%),linear-gradient(180deg,#080b15 0%,#0b1120 62%,#0a0f1c 100%); color:#eaeef7; border-bottom:1px solid #1d263c}
+  .hero .wrap{padding-top:104px; padding-bottom:72px}
+  .signal{position:absolute; inset:0; width:100%; height:100%; opacity:.5; pointer-events:none}
+  .hero-grid{position:relative; display:grid; grid-template-columns:1.1fr .9fr; gap:48px; align-items:center}
+  @media(max-width:860px){.hero-grid{grid-template-columns:1fr; gap:36px}}
+  .hero h1{font-weight:900; font-size:clamp(2.3rem,5.9vw,4.2rem); line-height:.99; letter-spacing:-.02em; margin:.35em 0 .28em}
+  .hero h1 .amber{color:#f6b24a}
+  .hero .lede{font-size:clamp(1.02rem,1.6vw,1.2rem); color:#c2cbdf; max-width:48ch; margin:0}
+  .hero .disclaimer{margin-top:24px; font:400 12px/1.55 "IBM Plex Mono",monospace; color:#7f8aa6; border-left:2px solid #35415f; padding-left:12px; max-width:50ch}
+  .reveal{background:rgba(11,17,30,.6); border:1px solid #26314c; border-radius:16px; padding:22px; box-shadow:0 20px 60px rgba(0,0,0,.5)}
+  .reveal .rlabel{font:500 10.5px/1 "IBM Plex Mono",monospace; letter-spacing:.14em; text-transform:uppercase; color:#8893ad}
+  .reveal .src{font-family:"IBM Plex Mono",monospace; font-size:clamp(1rem,2.1vw,1.32rem); font-weight:500; margin:6px 0 4px; color:#c2cbdf}
+  .reveal .src .cy{color:#5cd0e2; font-weight:600} .reveal .src .am{color:#f6b24a; font-weight:600}
+  .reveal .row2{margin-top:14px}
+  .arrowdown{display:flex; align-items:center; gap:10px; color:#7f8aa6; font:400 11px/1 "IBM Plex Mono",monospace; letter-spacing:.04em; margin:16px 0 12px}
+  .arrowdown .ln{flex:1; height:1px; background:linear-gradient(90deg,#35415f,transparent)}
+  .pw{display:flex; align-items:baseline; gap:2px; font-family:"IBM Plex Mono",monospace; font-weight:700}
+  .pw .u{font-size:clamp(2rem,4.7vw,2.7rem); color:#5cd0e2; background:rgba(92,208,226,.1); border:1px solid rgba(92,208,226,.4); border-radius:8px; padding:2px 8px}
+  .pw .k{font-size:clamp(2rem,4.7vw,2.7rem); color:#f6b24a; margin-left:8px}
+  .pw-legend{display:flex; flex-wrap:wrap; gap:6px 18px; margin-top:14px; font:400 11px/1.4 "IBM Plex Mono",monospace}
+  .dotc{color:#5cd0e2} .dota{color:#f6b24a}
+  .kpis{position:relative; display:flex; flex-wrap:wrap; gap:12px; margin-top:40px}
+  .kpi{background:rgba(255,255,255,.03); border:1px solid #232e47; border-radius:12px; padding:14px 18px; min-width:150px; flex:1}
+  .kpi .n{font-family:"Archivo",sans-serif; font-weight:800; font-size:1.7rem; line-height:1; color:#eaeef7}
+  .kpi .n em{font-style:normal; color:#f6b24a} .kpi .n .cy{color:#5cd0e2}
+  .kpi .l{font:400 12px/1.4 "IBM Plex Mono",monospace; color:#8893ad; margin-top:7px; letter-spacing:.02em}
+
+  section.band{padding:60px 0; border-bottom:1px solid var(--line)}
+  .sechead{display:flex; align-items:baseline; gap:16px; margin-bottom:8px}
+  .secnum{font-family:"IBM Plex Mono",monospace; font-weight:600; font-size:13px; color:var(--accent); letter-spacing:.1em}
+  section.band h2{font-weight:800; font-size:clamp(1.5rem,3.2vw,2.1rem); letter-spacing:-.01em}
+  .subhead{color:var(--muted); max-width:66ch; margin:10px 0 0; font-size:1.03rem}
+  section.band h3{font-weight:700; font-size:1.08rem; margin:0 0 6px}
+  figure{margin:0}
+  .figcard{background:var(--surface); border:1px solid var(--line); border-radius:18px; padding:26px; box-shadow:var(--shadow); margin-top:30px; overflow-x:auto}
+  figcaption{color:var(--muted); font-size:.92rem; margin-top:16px; text-align:center; text-wrap:balance}
+  .figcard svg{display:block; margin-inline:auto; max-width:100%; height:auto}
+  .cols{display:grid; grid-template-columns:1fr 1fr; gap:22px; margin-top:26px}
+  @media(max-width:760px){.cols{grid-template-columns:1fr}}
+  .card{background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:22px 24px; box-shadow:var(--shadow)}
+  .card.soft{background:var(--surface-2); box-shadow:none}
+  ul.clean{list-style:none; margin:0; padding:0}
+  ul.clean li{position:relative; padding-left:26px; margin:11px 0; color:var(--muted)}
+  ul.clean li::before{content:""; position:absolute; left:6px; top:.62em; width:7px; height:7px; border-radius:50%; background:var(--accent)}
+  ul.clean li b{color:var(--ink); font-weight:600}
+  .fails{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:26px; counter-reset:f}
+  @media(max-width:760px){.fails{grid-template-columns:1fr}}
+  .fail{position:relative; background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:20px 22px 20px 62px; box-shadow:var(--shadow)}
+  .fail::before{counter-increment:f; content:counter(f,decimal-leading-zero); position:absolute; left:20px; top:18px; font-family:"IBM Plex Mono",monospace; font-weight:600; color:var(--accent); font-size:14px}
+  .fail h3{font-size:1.02rem; margin-bottom:5px}
+  .fail p{margin:0; color:var(--muted); font-size:.96rem}
+  .term{background:#0b1120; border:1px solid #222c44; border-radius:14px; overflow:hidden; box-shadow:var(--shadow); margin-top:24px}
+  .term .bar{display:flex; align-items:center; gap:8px; padding:11px 15px; background:#0d1424; border-bottom:1px solid #1c2540}
+  .term .bar i{width:11px; height:11px; border-radius:50%; display:inline-block}
+  .term .bar .t{margin-left:10px; font:400 12px/1 "IBM Plex Mono",monospace; color:#7c88a6; letter-spacing:.03em}
+  .term pre{margin:0; padding:18px; overflow-x:auto; font-family:"IBM Plex Mono",monospace; font-size:13.5px; line-height:1.75; color:#d7deee; white-space:pre-wrap; word-break:break-word}
+  .term .pr{color:#5cd0e2} .term .fl{color:#f6b24a} .term .cm{color:#6d7893}
+  .term .u{color:#5cd0e2; font-weight:600} .term .k{color:#f6b24a; font-weight:600}
+  .mask{display:flex; flex-wrap:wrap; gap:10px; margin-top:24px}
+  .mtok{background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:12px 16px; box-shadow:var(--shadow)}
+  .mtok .tk{font-family:"IBM Plex Mono",monospace; font-weight:600; font-size:1.05rem}
+  .mtok .ds{font-size:.85rem; color:var(--muted); margin-top:3px}
+  .mtok.u .tk{color:var(--secret)} .mtok.k .tk{color:var(--accent)}
+  .collapse{margin-top:28px}
+  .barrow{display:flex; align-items:center; gap:16px; margin:14px 0}
+  .barrow .cap{width:160px; flex:none; font:500 12.5px/1.3 "IBM Plex Mono",monospace; color:var(--muted); text-align:right}
+  .bartrack{position:relative; flex:1; height:38px; background:var(--surface-2); border:1px solid var(--line); border-radius:9px; overflow:hidden}
+  .barfill{position:absolute; inset:0; border-radius:8px}
+  .barfill.full{background:linear-gradient(90deg,rgba(184,105,10,.85),rgba(184,105,10,.5))}
+  :root[data-theme="dark"] .barfill.full,:root:not([data-theme="light"]) .barfill.full{background:linear-gradient(90deg,rgba(244,173,62,.9),rgba(244,173,62,.35))}
+  .barval{position:relative; z-index:2; height:100%; display:flex; align-items:center; padding-left:14px; font:600 13px/1 "IBM Plex Mono",monospace; color:#fff}
+  .sliver{display:flex; align-items:center; gap:10px}
+  .sliver .swatch{width:6px; height:38px; border-radius:3px; background:var(--secret); flex:none}
+  .sliver .txt{font:600 13px/1.3 "IBM Plex Mono",monospace; color:var(--secret)}
+  .collapse .verdict{margin-top:18px; font-size:1.05rem; color:var(--ink)}
+  .collapse .verdict b{color:var(--danger)}
+  .callout{margin-top:26px; background:var(--surface-2); border:1px solid var(--line); border-left:3px solid var(--secret); border-radius:12px; padding:18px 22px; color:var(--muted)}
+  .callout.amber{border-left-color:var(--accent)} .callout.good{border-left-color:var(--good)}
+  .callout b{color:var(--ink)}
+  .pills{display:flex; flex-wrap:wrap; gap:9px; margin-top:20px}
+  .pill{font:500 12.5px/1 "IBM Plex Mono",monospace; color:var(--muted); background:var(--chip); border:1px solid var(--line); border-radius:999px; padding:8px 14px}
+  .evidence{display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-top:26px}
+  @media(max-width:760px){.evidence{grid-template-columns:1fr}}
+  .ecard{border:1px solid var(--line); border-radius:16px; padding:22px 24px; box-shadow:var(--shadow); background:var(--surface)}
+  .ecard .tag{font:600 11px/1 "IBM Plex Mono",monospace; letter-spacing:.1em; text-transform:uppercase; display:inline-block; padding:5px 10px; border-radius:999px; margin-bottom:12px}
+  .ecard.bad .tag{color:#fff; background:var(--danger)} .ecard.ok .tag{color:#fff; background:var(--good)}
+  .ecard .big{font-family:"Archivo",sans-serif; font-weight:800; font-size:2rem; line-height:1; color:var(--ink)}
+  .ecard .yr{font:500 13px/1 "IBM Plex Mono",monospace; color:var(--muted); margin-top:8px}
+  .ecard p{margin:12px 0 0; color:var(--muted); font-size:.95rem}
+  .timeline{margin-top:26px; border:1px solid var(--line); border-radius:16px; padding:24px 26px 18px; box-shadow:var(--shadow); background:var(--surface); overflow-x:auto}
+  .tl-track{position:relative; height:56px; min-width:520px; margin:8px 0 4px}
+  .tl-bar{position:absolute; top:22px; height:12px; border-radius:6px}
+  .tl-bar.vuln{left:0; width:52%; background:linear-gradient(90deg,var(--danger),color-mix(in srgb,var(--danger) 55%,transparent))}
+  .tl-bar.safe{left:52%; right:0; background:linear-gradient(90deg,color-mix(in srgb,var(--good) 55%,transparent),var(--good))}
+  .tl-tick{position:absolute; top:0; transform:translateX(-50%); font:500 11px/1.3 "IBM Plex Mono",monospace; color:var(--muted); text-align:center}
+  .tl-tick b{display:block; width:1px; height:16px; background:var(--line); margin:16px auto 0}
+  .tl-lab{display:flex; justify-content:space-between; font:600 12px/1 "IBM Plex Mono",monospace; margin-top:2px}
+  .tl-lab .v{color:var(--danger)} .tl-lab .s{color:var(--good)}
+  footer{padding:52px 0 66px; color:var(--muted)}
+  footer .rule{font-family:"Archivo",sans-serif; font-weight:800; font-size:1.15rem; color:var(--ink); letter-spacing:-.01em}
+  footer p{max-width:66ch; font-size:.95rem}
+  .taglist{display:flex; flex-wrap:wrap; gap:8px 18px; margin-top:22px; font:500 12px/1 "IBM Plex Mono",monospace; color:var(--faint); letter-spacing:.04em}
+  @media (prefers-reduced-motion:reduce){ .signal{display:none} }
+</style>
+</head>
+<body>
+<button class="toggle" id="themeBtn" aria-label="Alternar tema claro ou escuro">◐ tema</button>
+
+<header class="hero">
+  <svg class="signal" viewBox="0 0 1440 600" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <g fill="none" stroke-linecap="round">
+      <path d="M0 470 C 160 470 160 360 320 360 S 480 470 640 470 800 360 960 360 1120 470 1280 470 1440 360 1600 360" stroke="#5cd0e2" stroke-width="1.4" opacity="0.22"/>
+      <path d="M0 150 C 200 150 200 60 400 60 S 600 150 800 150 1000 60 1200 60 1400 150 1600 150" stroke="#f6b24a" stroke-width="1.4" opacity="0.18"/>
+    </g>
+  </svg>
+  <div class="wrap">
+    <div class="hero-grid">
+      <div>
+        <span class="eyebrow" style="color:#8f9ab5">Informe de segurança Wi-Fi · chaves padrão WPA2</span>
+        <h1>O SSID está<br><span class="amber">transmitindo</span> a senha.</h1>
+        <p style="margin:-.08em 0 .5em; font-size:.98rem; font-style:italic; color:var(--accent); opacity:.92; letter-spacing:.01em">…bem, quase toda.</p>
+        <p class="lede">Em gateways Claro afetados, a chave Wi-Fi de fábrica é derivada do MAC do aparelho — e cada byte dela está no ar. O <b style="color:#eaeef7">SSID</b> entrega 6 dos 8 caracteres; o <b style="color:#eaeef7">BSSID</b> entrega o resto. Normalmente sem handshake, sem quebra — é só <em>derivar</em>.</p>
+        <p style="margin:.7em 0 0; color:#c2cbdf; max-width:46ch; font-size:.98rem"><b style="color:#eaeef7">O detalhe — que também é a correção:</b> isso só funciona enquanto o gateway estiver com o SSID <em>e</em> a senha de fábrica. Troque um dos dois e não há nada para derivar.</p>
+        <p class="disclaimer">Todos os MACs, SSIDs e chaves mostrados são exemplos fictícios. Afetado: hardware antigo (~2021 e anterior). Apenas para uso autorizado / defensivo.</p>
+      </div>
+      <div class="reveal" aria-label="A chave inteira é legível a partir do beacon">
+        <div class="rlabel">Em todo beacon — transmitido em texto claro</div>
+        <div class="src">BSSID <span style="opacity:.6">A0:B1:</span><span class="cy">C2</span><span style="opacity:.6">:0C:E4:59</span></div>
+        <div class="src row2">SSID&nbsp;&nbsp;CLARO_2G<span class="am">3A9C2D</span></div>
+        <div class="arrowdown"><span>montar</span><span class="ln"></span><span>↓</span></div>
+        <div class="rlabel">Chave padrão WPA2 (8 hex)</div>
+        <div class="pw"><span class="u">C2</span><span class="k">3A9C2D</span></div>
+        <div class="pw-legend">
+          <span><b class="dotc">◧ C2</b> — o byte do OUI do BSSID</span>
+          <span><b class="dota">◨ 3A9C2D</b> — o final do SSID</span>
+        </div>
+      </div>
+    </div>
+    <div class="kpis">
+      <div class="kpi"><div class="n"><em>6</em> / 8</div><div class="l">caracteres da chave no SSID</div></div>
+      <div class="kpi"><div class="n">+ <span class="cy">2</span></div><div class="l">o resto, no OUI do BSSID</div></div>
+      <div class="kpi"><div class="n"><em>1</em> tentativa</div><div class="l">típico — sem handshake</div></div>
+      <div class="kpi"><div class="n">2019–<em>2021</em></div><div class="l">hardware afetado (2022+ é seguro)</div></div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="band">
+    <div class="wrap">
+      <div class="sechead"><span class="secnum">01</span><h2>De onde vêm os caracteres</h2></div>
+      <p class="subhead">Em gateways afetados, a chave padrão são os <b>quatro últimos octetos</b> do MAC do aparelho, em maiúsculas. E o beacon divulga cada um desses octetos — três no SSID, um no OUI do BSSID.</p>
+      <figure class="figcard">
+        <svg viewBox="0 0 720 452" role="img" aria-label="A chave padrão são os octetos 3 a 6 do MAC do aparelho. O octeto 3 é o último byte do OUI, transmitido pelo BSSID; os octetos 4 a 6 são o final do SSID. Cada byte é transmitido.">
+          <defs>
+            <marker id="ah-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#c58718"/></marker>
+            <marker id="ah-c" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#2ca7bb"/></marker>
+          </defs>
+          <text x="360" y="24" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="12" letter-spacing="1.2" fill="currentColor" opacity="0.62">MAC DO APARELHO — A CHAVE = OCTETOS 3-6</text>
+          <g font-family="IBM Plex Mono, monospace">
+            <rect x="70"  y="44" width="84" height="54" rx="9" fill="#5cd0e2" fill-opacity="0.06" stroke="#2ca7bb" stroke-opacity="0.5" stroke-dasharray="4 4"/>
+            <rect x="162" y="44" width="84" height="54" rx="9" fill="#5cd0e2" fill-opacity="0.06" stroke="#2ca7bb" stroke-opacity="0.5" stroke-dasharray="4 4"/>
+            <text x="112" y="80" text-anchor="middle" font-size="23" font-weight="600" fill="#2ca7bb" opacity="0.75">A0</text>
+            <text x="204" y="80" text-anchor="middle" font-size="23" font-weight="600" fill="#2ca7bb" opacity="0.75">B1</text>
+            <rect x="254" y="44" width="84" height="54" rx="9" fill="#5cd0e2" fill-opacity="0.16" stroke="#2ca7bb" stroke-width="2.5"/>
+            <text x="296" y="80" text-anchor="middle" font-size="24" font-weight="700" fill="#1c93a8">C2</text>
+            <rect x="346" y="44" width="84" height="54" rx="9" fill="#f4ad3e" fill-opacity="0.16" stroke="#c58718" stroke-width="2"/>
+            <text x="388" y="80" text-anchor="middle" font-size="24" font-weight="600" fill="#a76a09">3A</text>
+            <rect x="438" y="44" width="84" height="54" rx="9" fill="#f4ad3e" fill-opacity="0.16" stroke="#c58718" stroke-width="2"/>
+            <text x="480" y="80" text-anchor="middle" font-size="24" font-weight="600" fill="#a76a09">9C</text>
+            <rect x="530" y="44" width="84" height="54" rx="9" fill="#f4ad3e" fill-opacity="0.16" stroke="#c58718" stroke-width="2"/>
+            <text x="572" y="80" text-anchor="middle" font-size="24" font-weight="600" fill="#a76a09">2D</text>
+            <g font-size="10.5" fill="currentColor" opacity="0.5" text-anchor="middle">
+              <text x="112" y="114">octeto 1</text><text x="204" y="114">octeto 2</text><text x="296" y="114">octeto 3</text>
+              <text x="388" y="114">octeto 4</text><text x="480" y="114">octeto 5</text><text x="572" y="114">octeto 6</text>
+            </g>
+          </g>
+          <path d="M70 128 V 138 H 338 V 128" fill="none" stroke="#2ca7bb" stroke-width="1.5" opacity="0.8"/>
+          <path d="M346 128 V 138 H 614 V 128" fill="none" stroke="#c58718" stroke-width="1.5" opacity="0.8"/>
+          <text x="204" y="156" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" fill="#1c93a8" font-weight="600">OUI de 3 octetos = o prefixo do BSSID Wi-Fi</text>
+          <text x="480" y="156" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" fill="#a76a09" font-weight="600">octetos 4-6 = o final do SSID</text>
+          <path d="M296 168 C 296 210 300 236 360 282" fill="none" stroke="#2ca7bb" stroke-width="2.4" marker-end="url(#ah-c)"/>
+          <path d="M490 168 C 500 214 505 244 512 282" fill="none" stroke="#c58718" stroke-width="2.4" marker-end="url(#ah-a)"/>
+          <g font-family="IBM Plex Mono, monospace">
+            <rect x="120" y="286" width="248" height="58" rx="12" fill="currentColor" fill-opacity="0.04" stroke="currentColor" stroke-opacity="0.18"/>
+            <text x="136" y="311" font-size="9.5" letter-spacing="1" fill="currentColor" opacity="0.55">NOME DA REDE (SSID)</text>
+            <text x="136" y="333" font-size="18" font-weight="500" fill="currentColor">CLARO_2G<tspan fill="#a76a09" font-weight="600">3A9C2D</tspan></text>
+            <rect x="392" y="286" width="248" height="58" rx="12" fill="currentColor" fill-opacity="0.04" stroke="currentColor" stroke-opacity="0.18"/>
+            <text x="408" y="311" font-size="9.5" letter-spacing="1" fill="currentColor" opacity="0.55">CHAVE WI-FI PADRÃO (8 HEX)</text>
+            <text x="408" y="334" font-size="21" font-weight="600"><tspan fill="#1c93a8">C2</tspan><tspan fill="#a76a09">3A9C2D</tspan></text>
+          </g>
+          <text x="360" y="384" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11.5" fill="currentColor" opacity="0.8">O octeto 3 (<tspan fill="#1c93a8" font-weight="600">C2</tspan>) é o último byte do OUI — transmitido pelo BSSID em todo beacon.</text>
+          <text x="360" y="408" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11.5" fill="currentColor" opacity="0.8">Os octetos 4-6 (<tspan fill="#a76a09" font-weight="600">3A9C2D</tspan>) são o final do SSID. Então a chave inteira é pública.</text>
+        </svg>
+        <figcaption>Tanto o SSID quanto a chave vêm do MAC do aparelho. O SSID dá os octetos 4–6; o OUI do BSSID dá o octeto 3. Nada na chave é secreto.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap">
+      <div class="sechead"><span class="secnum">02</span><h2>O último byte não é secreto — é o OUI</h2></div>
+      <p class="subhead">Você pode achar que o byte inicial seria a parte difícil. Normalmente não é: no gateway <b>single-OUI</b> comum, o rádio Wi-Fi e o modem ficam no <b>mesmo OUI do fabricante</b>, e o BSSID do rádio é transmitido em todo beacon — então esse byte está ali, no ar.</p>
+      <div class="cols">
+        <div class="card">
+          <h3 style="color:var(--secret)">BSSID — o rádio Wi-Fi</h3>
+          <p class="mono" style="font-size:1.15rem; margin:.4em 0; color:var(--ink)"><span style="color:var(--secret)">A0:B1:C2</span>:0C:E4:59</p>
+          <p style="color:var(--muted); margin:0">Em todo beacon. Seu OUI é <b style="color:var(--secret)">A0:B1:C2</b> — o octeto 3 é <b style="color:var(--secret)">C2</b>.</p>
+        </div>
+        <div class="card">
+          <h3 style="color:var(--accent)">MAC do aparelho — a origem da chave</h3>
+          <p class="mono" style="font-size:1.15rem; margin:.4em 0; color:var(--ink)"><span style="color:var(--secret)">A0:B1:C2</span>:3A:9C:2D</p>
+          <p style="color:var(--muted); margin:0">Mesmo OUI <b style="color:var(--secret)">A0:B1:C2</b>. Então o octeto 3 = <b style="color:var(--secret)">C2</b> — o byte inicial da senha, já público.</p>
+        </div>
+      </div>
+      <div class="callout"><b>A exceção — gateways split-OUI.</b> Alguns aparelhos — de forma sistemática, os modelos ARRIS/CommScope — são na verdade dois aparelhos numa carcaça só: o modem DOCSIS e o roteador Wi-Fi tiram MACs de <em>blocos de OUI diferentes</em> — ex.: rádio <code style="color:var(--secret)">C8:52:61</code> enquanto o modem que gera a senha é <code style="color:var(--accent)">A8:70:5D</code>. Aí o octeto 3 do BSSID (<code>61</code>) <b>não</b> é o byte inicial (<code>5D</code>), e não dá para lê-lo no beacon — é para isso que existe o fallback de 256 tentativas, e ele resolve contra um handshake em <b>menos de um segundo</b>. Isso não é raro, é <b>subcontado</b>: não dá para distinguir split de single só pelo beacon, e donos de aparelhos split tendem a renomear — então varreduras passivas os perdem. Buscar diretamente o OUI da ARRIS numa captura de metrópole revelou três gateways ARRIS distintos, todos renomeados.</div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap">
+      <div class="sechead"><span class="secnum">03</span><h2>Uma chave 2³² que colapsa para uma</h2></div>
+      <p class="subhead">No papel, uma chave WPA2 de 8 hex é 2³² — cerca de 4,3&nbsp;bilhões de possibilidades. Leia o SSID e o BSSID e ela cai para um único candidato; até o pior caso (byte final ilegível) são apenas 256.</p>
+      <div class="collapse">
+        <div class="barrow">
+          <div class="cap">no papel<br>2³²</div>
+          <div class="bartrack"><div class="barfill full"></div><div class="barval">4.294.967.296 chaves possíveis</div></div>
+        </div>
+        <div class="barrow">
+          <div class="cap">SSID + BSSID<br>lidos do ar</div>
+          <div class="sliver"><span class="swatch"></span><span class="txt">1 — é só digitar</span></div>
+        </div>
+        <p class="verdict">Uma rede WPA2 "forte" reduzida a <b>uma consulta</b>. Sem handshake, sem GPU — a rede está anunciando a própria senha a quem estiver por perto.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap">
+      <div class="sechead"><span class="secnum">04</span><h2>Leia do ar — ou quebre o fallback</h2></div>
+      <p class="subhead">O caminho principal não precisa de nada além de um scan: pegue o octeto 3 do BSSID e o final do SSID, e você tem a chave. Se o byte realmente não puder ser lido, um handshake capturado + uma máscara de 256 tentativas resolve em menos de um segundo.</p>
+      <div class="term">
+        <div class="bar"><i style="background:#f2565c"></i><i style="background:#f6b24a"></i><i style="background:#57c98a"></i><span class="t">derivar de um scan — sem handshake</span></div>
+<pre>BSSID <span class="u">A0:B1:C2</span>:0C:E4:59   SSID CLARO_2G<span class="k">3A9C2D</span>
+chave = <span class="u">C2</span> + <span class="k">3A9C2D</span>  →  <span class="u">C2</span><span class="k">3A9C2D</span></pre>
+      </div>
+      <div class="term">
+        <div class="bar"><i style="background:#f2565c"></i><i style="background:#f6b24a"></i><i style="background:#57c98a"></i><span class="t">fallback — máscara hashcat contra um handshake</span></div>
+<pre><span class="pr">$</span> hashcat <span class="fl">-a</span> 3 <span class="fl">-m</span> 22000 captura.hc22000 <span class="u">?H?H</span><span class="k">3A9C2D</span>
+<span class="cm">CLARO_2G3A9C2D</span>:<span class="k">C23A9C2D</span>   <span class="cm">← recuperada (≤256 tentativas)</span></pre>
+      </div>
+      <div class="mask">
+        <div class="mtok u"><div class="tk">?H?H</div><div class="ds">byte desconhecido (pior caso) · 256</div></div>
+        <div class="mtok k"><div class="tk">3A9C2D</div><div class="ds">final do SSID — os 6 de 8 conhecidos</div></div>
+        <div class="mtok"><div class="tk">-m 22000</div><div class="ds">handshake WPA-PBKDF2</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap">
+      <div class="sechead"><span class="secnum">05</span><h2>Medido, não teorizado</h2></div>
+      <p class="subhead">Verificado em <b>10 gateways Claro de 7 fabricantes</b> — derivando a chave de handshakes reais e lendo etiquetas de fábrica, fotos de homologação da ANATEL e QR codes das etiquetas. Uma varredura passiva depois encontrou <b>1.000+ mais</b> gateways distintos ativos no padrão, em mais de 20 blocos de fabricante — todos single-OUI (a classe split-OUI ARRIS é subcontada por varreduras passivas; veja a nota acima).</p>
+      <div class="evidence">
+        <div class="ecard bad">
+          <span class="tag">Afetado</span>
+          <div class="big">5 aparelhos</div>
+          <div class="yr">fabricados 2019–2021 · 5 fabricantes</div>
+          <p>Senha Wi-Fi = os 8 últimos hex do MAC do aparelho. Nos aparelhos single-OUI, o byte inicial coincidiu com o octeto 3 do BSSID; ARRIS/CommScope é split-OUI (exige as 256 tentativas) — uma classe real, vários vistos na rua, todos renomeados.</p>
+        </div>
+        <div class="ecard ok">
+          <span class="tag">Não afetado</span>
+          <div class="big">5 aparelhos</div>
+          <div class="yr">fabricados 2022+ · chaves aleatórias</div>
+          <p>Senhas aleatórias de entropia total, sem relação com o MAC. Mesmo formato de SSID — mas não derivável.</p>
+        </div>
+      </div>
+      <div class="callout amber"><b>É o modelo/época, não o fabricante.</b> Dois fabricantes aparecem nos <em>dois</em> lados — um modelo antigo afetado, um mais novo não. Então um SSID <code>CLARO_&lt;hex&gt;</code> significa <b>vale testar</b>, nunca <b>vulnerável garantido</b>. O formato do SSID é universal nos 10 aparelhos; a fraqueza não.</div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap">
+      <div class="sechead"><span class="secnum">06</span><h2>Quatro erros que se somam</h2></div>
+      <p class="subhead">Qualquer um deles é sobrevivível. Somados, transformam uma rede WPA2 "forte" numa consulta.</p>
+      <div class="fails">
+        <div class="fail"><h3>Determinística a partir de uma semente de baixa entropia</h3><p>A chave é uma função pura do MAC — um identificador, não material de chave aleatório.</p></div>
+        <div class="fail"><h3>A semente é transmitida</h3><p>O SSID publica os 3 últimos octetos e o BSSID publica o OUI — juntos, os 4 octetos da chave.</p></div>
+        <div class="fail"><h3>Alfabeto minúsculo, sem alongamento</h3><p>Apenas hex maiúsculo, nunca com hash ou sal. 8 hex = 32 bits no máximo; após os vazamentos, até zero.</p></div>
+        <div class="fail"><h3>Protocolo atacável offline</h3><p>O handshake capturado do WPA2 torna até um espaço trivial testável, sem detecção — e aqui você quase nunca precisa dele.</p></div>
+      </div>
+      <div class="callout amber">
+        <b>É uma família inteira.</b> Esse padrão atinge gateways de provedores há anos. Sempre que uma chave padrão é um algoritmo sobre um identificador público, esse algoritmo acaba sendo publicado e as chaves padrão de toda a frota se tornam recuperáveis.
+        <div class="pills"><span class="pill">Thomson / SpeedTouch</span><span class="pill">BT Home Hub</span><span class="pill">UPC / Ubee</span><span class="pill">Arcadyan</span><span class="pill">Sky</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap">
+      <div class="sechead"><span class="secnum">07</span><h2>A correção</h2></div>
+      <div class="cols">
+        <div class="card">
+          <h3 style="color:var(--good)">Se você é dono do gateway</h3>
+          <ul class="clean">
+            <li><b>Troque a senha do Wi-Fi</b> por uma frase longa e aleatória. 20+ caracteres aleatórios derrotam isso por completo — a correção de verdade.</li>
+            <li><b>Troque o SSID</b> para que ele pare de ecoar o MAC. Sozinho, isso só esconde o final, então faça as duas coisas.</li>
+            <li>Trate qualquer aparelho ainda com o nome de fábrica <code>CLARO_&lt;hex&gt;</code> como efetivamente aberto — e veja se o seu é um modelo anterior a 2022.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3 style="color:var(--good)">Se você é o fabricante / provedor</h3>
+          <ul class="clean">
+            <li><b>Gere chaves aleatórias de entropia total, por aparelho</b> — armazenadas, nunca calculadas a partir do MAC.</li>
+            <li><b>Nunca derive o SSID e a chave do mesmo segredo</b>, e nunca coloque bytes da chave num campo transmitido.</li>
+            <li>Force a troca de senha na primeira configuração.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="callout good"><b>A boa notícia:</b> o hardware da Claro de 2022+ já vem com chaves aleatórias de entropia total — a correção está comprovada e em produção. O risco residual é a base instalada de aparelhos mais antigos, e para esses a cura é uma configuração: trocar a senha.</div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap">
+      <div class="sechead"><span class="secnum">08</span><h2>Escopo — uma linha datada, não uma frota</h2></div>
+      <p class="subhead">Nos aparelhos medidos, a mudança para chaves aleatórias acompanha a data de fabricação — tanto em coaxial quanto em fibra, entre fabricantes. A janela afetada é aproximadamente 2019–2021.</p>
+      <div class="timeline" role="img" aria-label="Linha do tempo: aparelhos fabricados de 2019 a 2021 usam chaves derivadas do MAC e são afetados; a partir de 2022 usam chaves aleatórias e não são.">
+        <div class="tl-track">
+          <div class="tl-bar vuln"></div>
+          <div class="tl-bar safe"></div>
+          <div class="tl-tick" style="left:2%">2019<b></b></div>
+          <div class="tl-tick" style="left:52%">2021→22<b></b></div>
+          <div class="tl-tick" style="left:98%">2024<b></b></div>
+        </div>
+        <div class="tl-lab"><span class="v">◄ chave derivada do MAC — afetado</span><span class="s">chave aleatória — não afetado ►</span></div>
+      </div>
+      <div class="callout">Funciona <b>apenas</b> enquanto o gateway estiver com o SSID <em>e</em> a senha de fábrica. Uma rede renomeada ou uma chave trocada não podem ser derivadas — que é exatamente por que trocar o padrão é a cura. As evidências por aparelho são mantidas em privado; os exemplos nesta página são fictícios.</div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="rule">Apenas auditoria autorizada do seu próprio equipamento ou com consentimento.</div>
+    <p style="margin-top:12px">Acessar redes que você não possui ou não tem permissão escrita explícita para testar é ilegal na maioria das jurisdições. Este material é para educação e segurança defensiva. A lição é a defesa: <b style="color:var(--ink)">troque a chave padrão.</b></p>
+    <div class="taglist">
+      <span>WPA2-PSK</span><span>chave = 8 últimos hex do MAC</span><span>byte inicial = OUI do BSSID</span><span>hashcat -m 22000</span><span>afetado 2019–2021</span><span>claro_wpa_key.py</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  (function(){
+    var btn = document.getElementById('themeBtn'), root = document.documentElement;
+    btn.addEventListener('click', function(){
+      var cur = root.getAttribute('data-theme');
+      if(!cur){ cur = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light'; }
+      root.setAttribute('data-theme', cur === 'dark' ? 'light' : 'dark');
+    });
+  })();
+</script>
+</body>
+</html>

@@ -1,0 +1,62 @@
+<!doctype html><html><head><meta charset="utf8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800;900&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500&display=swap">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:1280px;height:640px;overflow:hidden}
+  body{
+    background:
+      radial-gradient(1100px 520px at 82% -12%, rgba(244,173,62,.16), transparent 60%),
+      radial-gradient(900px 520px at -6% 118%, rgba(92,208,226,.13), transparent 55%),
+      linear-gradient(160deg,#0a1120 0%,#0b1220 60%,#090f1c 100%);
+    color:#e9edf6; font-family:"IBM Plex Sans",system-ui,sans-serif;
+    padding:74px 84px; position:relative;
+  }
+  .eyebrow{font-family:"IBM Plex Mono",monospace; font-size:19px; letter-spacing:.32em;
+    text-transform:uppercase; color:#7f8aa3; margin-bottom:26px}
+  h1{font-family:"Archivo",sans-serif; font-weight:900; font-size:82px; line-height:.98;
+    letter-spacing:-.02em; max-width:15ch}
+  h1 .amber{color:#f4ad3e}
+  .aside{font-size:23px; font-style:italic; color:#f4ad3e; opacity:.9; margin-top:14px}
+  .card{position:absolute; left:84px; right:84px; bottom:120px;
+    background:rgba(17,23,38,.72); border:1px solid #26304a; border-radius:16px;
+    padding:26px 30px; display:flex; align-items:center; gap:26px;
+    box-shadow:0 12px 40px rgba(0,0,0,.35)}
+  .mono{font-family:"IBM Plex Mono",monospace}
+  .ssid{font-size:34px; font-weight:600; color:#dfe6f2}
+  .ssid .k{color:#f4ad3e}
+  .arrow{font-size:30px; color:#5f6b85}
+  .keywrap{display:flex; flex-direction:column; gap:3px}
+  .klabel{font-family:"IBM Plex Mono",monospace; font-size:14px; letter-spacing:.16em;
+    text-transform:uppercase; color:#7f8aa3}
+  .key{font-family:"IBM Plex Mono",monospace; font-size:40px; font-weight:600}
+  .key .o{color:#5cd0e2}
+  .key .k{color:#f4ad3e}
+  .grow{flex:1}
+  .noshake{font-size:16px; color:#98a1b8; text-align:right; line-height:1.4; max-width:26ch}
+  .foot{position:absolute; left:84px; right:84px; bottom:52px; display:flex;
+    justify-content:space-between; align-items:center; font-family:"IBM Plex Mono",monospace;
+    font-size:16px; color:#8b93a6}
+  .foot b{color:#cfd6e6; font-weight:600}
+</style></head><body>
+  <div class="eyebrow">Wi-Fi security briefing · WPA2 default keys</div>
+  <h1>The SSID is<br><span class="amber">broadcasting</span> the password.</h1>
+  <div class="aside">…well, most of it.</div>
+
+  <div class="card">
+    <div class="ssid mono">CLARO_2G<span class="k">3A9C2D</span></div>
+    <div class="arrow mono">→</div>
+    <div class="keywrap">
+      <div class="klabel">derived key · no handshake</div>
+      <div class="key"><span class="o">C2</span><span class="k">3A9C2D</span></div>
+    </div>
+    <div class="grow"></div>
+    <div class="noshake"><b style="color:#5cd0e2">BSSID octet 3</b> + <b style="color:#f4ad3e">SSID tail</b><br>= the whole key, off the beacon</div>
+  </div>
+
+  <div class="foot">
+    <span>f34rinc/<b>claro-default-wpa-key</b></span>
+    <span>for authorised / defensive research · examples fabricated</span>
+  </div>
+</body></html>

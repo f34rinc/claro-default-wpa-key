@@ -1,0 +1,53 @@
+# Never commit captured handshakes — they are real credential material.
+*.hc22000
+*.22000
+*.pcap
+*.pcapng
+*.cap
+*.hccapx
+
+# Local scratch for fabricated test captures — never published, even though fake.
+samples/
+
+# hashcat artifacts
+*.potfile
+hashcat.potfile
+*.restore
+*.log
+
+# recovered keys written by claro_wpa_key.py — real credential material
+claro_cracked.txt
+*cracked*.txt
+
+# WiGLE wardriving exports carry a per-AP GPS fix — keep local, never publish.
+# (data/claro_ouis.csv is intentionally NOT matched by these.)
+*.kml
+*.kmz
+wigle*.csv
+WigleWifi*.csv
+# analyze_wigle.py reports may list real BSSID+SSID pairs
+wigle_report*.txt
+*_wigle_report.txt
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# local research note (contains a real key as evidence)
+TODO.md
+
+# local publishing checklist
+PUSH.md
+
+# local real-evidence file (real MACs/SSIDs/passwords) — never publish
+EVIDENCE.md

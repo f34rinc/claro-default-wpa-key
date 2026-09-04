@@ -1,0 +1,80 @@
+name: New OUI / device / SSID variant
+description: Report a Claro gateway's vendor OUI, a split-OUI unit, or a new default-SSID naming variant. Non-sensitive data only.
+title: "[data] "
+labels: ["data"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for contributing a data point! **Only non-sensitive, aggregatable info.**
+
+        ⛔ **Do NOT include:** Wi-Fi passwords / recovered keys, packet captures
+        (`.hc22000`/`.pcap`/handshakes), GPS coordinates, or the **full BSSID *and*
+        SSID of a real home network** together. An **OUI prefix** (first 3 octets)
+        alone is fine. See CONTRIBUTING.md.
+  - type: input
+    id: oui
+    attributes:
+      label: OUI prefix (first 3 octets)
+      description: Uppercase, colon-separated. This is public IEEE registry data.
+      placeholder: "58:2F:F7"
+    validations:
+      required: true
+  - type: input
+    id: vendor
+    attributes:
+      label: Vendor / maker (best guess is fine)
+      placeholder: "Askey, Kaon, Humax, ZTE, ..."
+  - type: input
+    id: model
+    attributes:
+      label: Model (optional)
+      placeholder: "e.g. TG3442, CG3600T"
+  - type: dropdown
+    id: keytype
+    attributes:
+      label: Default key type
+      description: Was the factory Wi-Fi password the device MAC's last 8 hex, or random?
+      options:
+        - "Unsure"
+        - "MAC-derived (last 8 hex of the MAC)"
+        - "Random (not related to the MAC)"
+    validations:
+      required: true
+  - type: dropdown
+    id: ouitype
+    attributes:
+      label: Single-OUI or split-OUI?
+      description: Split = the Wi-Fi radio OUI is a DIFFERENT block than the cable-modem OUI (ARRIS-style).
+      options:
+        - "Unsure"
+        - "Single-OUI (radio and modem share the OUI)"
+        - "Split-OUI (radio OUI != modem OUI)"
+    validations:
+      required: true
+  - type: input
+    id: modem_oui
+    attributes:
+      label: If split-OUI - the MODEM-side OUI prefix
+      description: Only the first 3 octets of the modem/CM block (not the full MAC).
+      placeholder: "A8:70:5D"
+  - type: input
+    id: ssid_format
+    attributes:
+      label: Default SSID format seen
+      description: The shape only - mask the device-specific hex if you like.
+      placeholder: "CLARO_2G<6hex>, CLARO_<6hex>-5G-BH, CLARO_<6hex>-IoT, ..."
+  - type: input
+    id: era
+    attributes:
+      label: Approx. manufacture year and region (optional, coarse)
+      placeholder: "~2023, Brazil (state-level is plenty)"
+  - type: checkboxes
+    id: ack
+    attributes:
+      label: Confirmation
+      options:
+        - label: "This report contains NO passwords, captures, GPS, or a full home BSSID+SSID pair."
+          required: true
+        - label: "This is for authorised / defensive / educational research."
+          required: true

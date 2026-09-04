@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Contribution guidelines (read first)
+    url: https://github.com/F34RInc/claro-default-wpa-key/blob/master/CONTRIBUTING.md
+    about: What's helpful to submit, and what must never be included (passwords, captures, GPS, full home BSSID+SSID).
