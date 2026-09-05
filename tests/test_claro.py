@@ -16,9 +16,11 @@ import unittest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "tools"))
+sys.path.insert(0, os.path.join(ROOT, "utils"))
 
 import claro_wpa_key as k          # noqa: E402
 import analyze_wigle as w          # noqa: E402
+import charset_mask as cm          # noqa: E402
 
 
 class TestSsidParsing(unittest.TestCase):
@@ -115,6 +117,24 @@ class TestAnalyzerClassify(unittest.TestCase):
 
     def test_renamed_is_not_a_gateway(self):
         self.assertIsNone(w.classify({"essid": "MyHomeWiFi", "bssid": "743aef3a9c2d"}))
+
+
+class TestCharsetMaskPositional(unittest.TestCase):
+    def test_positional_collapses_and_contains_key(self):
+        # Fabricated: BSSID A0:B1:C2:3A:9C:2E, SSID CLARO_2G3A9C2D.
+        # Derived key = C2 (BSSID octet 3) + 3A9C2D = C23A9C2D. Only the last
+        # nibble differs (E in the radio MAC vs D in the SSID tail).
+        cand = cm.positional_candidates("a0b1c23a9c2e", "CLARO_2G3A9C2D", 8)
+        cmd, ks = cm.positional_command("cap.hc22000", cand)
+        self.assertEqual(ks, 2)                                  # keyspace collapses to 2
+        key = "C23A9C2D"
+        self.assertTrue(all(key[i] in cand[i] for i in range(8)))   # still contains the key
+        self.assertIn("C23A9C2", cmd)                            # high bytes are literals
+
+    def test_positional_always_includes_ssid_tail(self):
+        cand = cm.positional_candidates("a1b2c3250b33", "CLARO_5G250B2E", 8)
+        key = "C3250B2E"                                         # C3 + 250B2E
+        self.assertTrue(all(key[i] in cand[i] for i in range(8)))
 
 
 if __name__ == "__main__":

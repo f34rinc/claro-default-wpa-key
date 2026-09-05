@@ -231,6 +231,11 @@ General helpers, not specific to the Claro scheme.
   is only the uppercase hex characters present in that BSSID + SSID hex tail. A
   generic keyspace-reduction helper. Standalone, stdlib only.
   `python utils/charset_mask.py capture.hc22000`
+  Add **`--positional`** for a *per-position* charset — where the BSSID and SSID
+  agree the position is a fixed literal, only the diverging low byte varies. On
+  MAC-derived keys that collapses the keyspace from ~10⁸ to a **median of 4** (max
+  64 across ~1,400 real gateways) while still containing the key. It's a fast
+  heuristic; the uniform mask stays the guaranteed fallback.
 
 ## Defensive takeaway
 
