@@ -166,3 +166,9 @@ F0:0C:51,ZTE,
 
 # 2026-09-04 walk-through capture
 C8:EA:F8,ZTE,
+
+# 2026-09-06 holiday warwalk (Copacabana) - 4 new OUIs, IEEE-attributed
+40:0F:C1,Vantiva/Technicolor,
+2C:95:69,Arris/CommScope,
+C0:BC:9A,Huawei,
+60:14:66,ZTE,

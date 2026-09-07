@@ -33,11 +33,18 @@ Usage:
     python charset_mask.py --positional capture.hc22000   (add the aggressive tier)
     python charset_mask.py            (no args -> prompts / drag-drop friendly)
 
+If hashcat is on your PATH, the emitted command is prefixed with a `cd` into
+hashcat's own folder -- in your shell's syntax (cmd / PowerShell / POSIX,
+auto-detected from the parent process; override with the HASHCAT_SHELL env var =
+cmd|powershell|posix) -- so it finds its OpenCL/kernels and runs exactly as pasted
+(hashcat looks for those relative to the launch dir, not to hashcat.exe).
+
 For authorised auditing of your own / consented equipment only.
 """
 
 import os
 import re
+import shutil
 import sys
 
 HASH_MODE  = 22000     # WPA/WPA2 (hashcat mode 22000)
@@ -90,6 +97,119 @@ def hex_charset(bssid, essid):
     return "".join(sorted(pool))
 
 
+# Shells recognised when walking the parent-process chain (Windows).
+_SHELLS = {"cmd.exe", "powershell.exe", "pwsh.exe", "bash.exe", "sh.exe",
+           "zsh.exe", "fish.exe", "wt.exe", "windowsterminal.exe",
+           "mintty.exe", "conemu.exe", "conemu64.exe", "code.exe",
+           "cursor.exe", "alacritty.exe", "wezterm-gui.exe"}
+
+
+def _win_parent_chain():
+    """Ordered exe names of this process's ancestors (nearest parent first),
+    lowercased, via a Toolhelp snapshot. [] on non-Windows or on any failure.
+
+    Used both to tell a GUI launch from a terminal one, and to sniff which shell the
+    user is in. The whole chain is walked (not just the immediate parent) because the
+    Windows .py association goes Explorer -> py.exe -> python.exe, so the real
+    launcher is a grandparent."""
+    if os.name != "nt":
+        return []
+    procs = {}
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        class _PE32(ctypes.Structure):
+            _fields_ = [("dwSize", wintypes.DWORD), ("cntUsage", wintypes.DWORD),
+                        ("th32ProcessID", wintypes.DWORD),
+                        ("th32DefaultHeapID", ctypes.POINTER(ctypes.c_ulong)),
+                        ("th32ModuleID", wintypes.DWORD), ("cntThreads", wintypes.DWORD),
+                        ("th32ParentProcessID", wintypes.DWORD),
+                        ("pcPriClassBase", ctypes.c_long), ("dwFlags", wintypes.DWORD),
+                        ("szExeFile", ctypes.c_char * 260)]
+
+        k = ctypes.windll.kernel32
+        snap = k.CreateToolhelp32Snapshot(0x2, 0)     # TH32CS_SNAPPROCESS
+        if snap in (-1, None):
+            return []
+        e = _PE32(); e.dwSize = ctypes.sizeof(_PE32)
+        ok = k.Process32First(snap, ctypes.byref(e))
+        while ok:
+            procs[e.th32ProcessID] = (e.th32ParentProcessID,
+                                      e.szExeFile.decode("latin-1").lower())
+            ok = k.Process32Next(snap, ctypes.byref(e))
+        k.CloseHandle(snap)
+    except Exception:
+        return []
+    chain, cur, seen = [], os.getpid(), set()
+    while cur in procs and cur not in seen:
+        seen.add(cur)
+        ppid = procs[cur][0]
+        parent = procs.get(ppid)
+        if not parent:
+            break
+        chain.append(parent[1])
+        cur = ppid
+    return chain
+
+
+def _detect_shell():
+    """Which shell the emitted `cd`+run one-liner should target, so it pastes back
+    into the shell the user is actually in. Honours an explicit HASHCAT_SHELL override
+    (cmd|powershell|posix). On POSIX -> 'posix'. On Windows, sniff the parent-process
+    chain for PowerShell vs cmd; default to 'cmd' -- the Windows norm, and its
+    `cd /d ... &&` is what most hashcat-on-Windows guides use -- when the walk is
+    inconclusive (e.g. a drag-and-drop launch with no shell ancestor)."""
+    override = os.environ.get("HASHCAT_SHELL", "").strip().lower()
+    if override in ("cmd", "powershell", "posix"):
+        return override
+    if os.name != "nt":
+        return "posix"
+    for name in _win_parent_chain():
+        if name in ("powershell.exe", "pwsh.exe"):
+            return "powershell"
+        if name == "cmd.exe":
+            return "cmd"
+        if name in ("bash.exe", "sh.exe", "zsh.exe", "fish.exe", "mintty.exe"):
+            return "posix"        # Git Bash / MSYS on Windows -> POSIX `cd ... &&`
+    return "cmd"
+
+
+def _hashcat_prefix():
+    """Locate hashcat on PATH and return (cd_prefix, program_name) so the emitted
+    command is copy-paste RUNNABLE from any directory.
+
+    hashcat resolves its OpenCL/ kernels/ modules/ folders relative to the *current
+    working directory*, not to hashcat.exe -- so a portable/extracted install (data
+    folders sitting next to the binary) must be launched from its own folder, or it
+    dies with "./OpenCL/: No such file or directory". When hashcat is on PATH and its
+    folder holds those data dirs, we prepend a `cd` into it, in the DETECTED shell's
+    syntax (cmd `cd /d ... &&`, PowerShell `cd ... ;`, POSIX `cd ... &&`). A system
+    install (no data folders beside the binary -- it finds its own) or a hashcat not
+    on PATH gets a bare `hashcat` call."""
+    exe = shutil.which("hashcat")
+    if not exe:
+        return "", "hashcat"
+    d = os.path.dirname(os.path.abspath(exe))
+    needs_cd = any(os.path.isdir(os.path.join(d, sub)) for sub in ("OpenCL", "kernels"))
+    if not needs_cd:
+        return "", "hashcat"
+    shell = _detect_shell()
+    if shell == "powershell":
+        return f'cd "{d}"; ', "hashcat"        # PowerShell: `;` sequences; cd switches drive
+    if shell == "cmd":
+        return f'cd /d "{d}" && ', "hashcat"   # cmd: /d switches drive, && chains
+    return f'cd "{d}" && ', "hashcat"          # POSIX (bash/zsh/sh)
+
+
+def _hc_command(path, tail):
+    """A full, runnable hashcat command: the launch prefix (see _hashcat_prefix) + the
+    program + `tail` (everything after the program name), whitespace-tidied."""
+    prefix, hc = _hashcat_prefix()
+    return re.sub(r"\s{2,}", " ",
+                  f'{prefix}{hc} -m {HASH_MODE} -a 3 "{path}" {tail}').strip()
+
+
 def positional_candidates(bssid, essid, keylen):
     """Per-position candidate chars for a MAC-derived hex key: align the BSSID's
     last <keylen> hex to the key, and the SSID's longest hex run to the key's tail.
@@ -136,7 +256,7 @@ def positional_command(path, cand):
         else:
             mask += "?H"                       # overflow: wider but still contains the key
     args = " ".join(f"-{i + 1} {c}" for i, c in enumerate(charsets))
-    return re.sub(r"\s{2,}", " ", f'hashcat -m {HASH_MODE} -a 3 "{path}" {args} {mask}'), ks
+    return _hc_command(path, f"{args} {mask}"), ks
 
 
 def human_time(seconds):
@@ -172,7 +292,7 @@ def report(path, net, positional=False):
         est = "   ".join(f"~{human_time(ks/r)} @ {r//1000}K H/s" for r in RATES)
         print(f"  Est.    : {est}")
         mask = "?1" * MIN_LEN
-        cmd = f'hashcat -m {HASH_MODE} -a 3 "{path}" -1 {charset} {mask}'
+        cmd = _hc_command(path, f"-1 {charset} {mask}")
     else:
         print(f"  Keyspace by length ({MIN_LEN}-{MAX_LEN}):")
         total = 0
@@ -182,9 +302,12 @@ def report(path, net, positional=False):
             print(f"    len {L:2}: {n}^{L} = {ks:,}   (~{human_time(ks/RATES[0])} @ {RATES[0]//1000}K)")
         print(f"    total : {total:,}   (~{human_time(total/RATES[0])} @ {RATES[0]//1000}K)")
         mask = "?1" * MAX_LEN
-        cmd = (f'hashcat -m {HASH_MODE} -a 3 "{path}" -1 {charset} '
-               f'--increment --increment-min {MIN_LEN} --increment-max {MAX_LEN} {mask}')
+        cmd = _hc_command(path, f"-1 {charset} --increment "
+                                f"--increment-min {MIN_LEN} --increment-max {MAX_LEN} {mask}")
     print(f"  Command :\n    {cmd}")
+    if not shutil.which("hashcat"):
+        print("    (hashcat not on PATH -- run this from your hashcat folder so it"
+              " finds its OpenCL/ kernels/, or add it to PATH.)")
 
     if positional:
         cmd_p, ks_p = positional_command(path, positional_candidates(bssid, essid, MIN_LEN))
@@ -195,19 +318,32 @@ def report(path, net, positional=False):
         print(f"      The uniform command above is the exhaustive fallback.")
 
 
-def main():
-    argv = [a.strip().strip('"') for a in sys.argv[1:]]
-    positional = any(a in ("--positional", "-p") for a in argv)
-    args = [a for a in argv if a not in ("--positional", "-p")]
-    if not args:
-        p = input("Drag a .hc22000 file here, or paste its path: ").strip().strip('"')
-        if p:
-            args = [p]
-    if not args:
-        print("No file given.")
-        return
+def _launched_standalone():
+    """True when this script was double-clicked or a file was dragged onto it on
+    Windows, so its console window would vanish the instant we return. False when
+    run from an existing shell, where a keep-open pause would just annoy.
 
-    for path in args:
+    Walks the parent-process chain: a shell ancestor (cmd/powershell/bash/...) ->
+    run from a terminal -> False; an explorer.exe ancestor reached first -> GUI
+    launch -> True. Falls back to "this process owns the console alone" when the walk
+    is inconclusive."""
+    if os.name != "nt":
+        return False
+    for name in _win_parent_chain():
+        if name in _SHELLS:
+            return False
+        if name == "explorer.exe":
+            return True
+    try:
+        import ctypes
+        arr = (ctypes.c_uint * 4)()
+        return ctypes.windll.kernel32.GetConsoleProcessList(arr, 4) <= 1
+    except Exception:
+        return False
+
+
+def _run(paths, positional):
+    for path in paths:
         path = os.path.abspath(path)
         print("=" * 70)
         print(f"File: {path}")
@@ -221,6 +357,38 @@ def main():
         for i, net in enumerate(nets, 1):
             print(f"\nNetwork {i}/{len(nets)}")
             report(path, net, positional)
+
+
+def main():
+    argv = [a.strip().strip('"') for a in sys.argv[1:]]
+    positional = any(a in ("--positional", "-p") for a in argv)
+    args = [a for a in argv if a not in ("--positional", "-p")]
+
+    if args:
+        # Files given on the command line (incl. dragged onto the .py icon).
+        _run(args, positional)
+        if _launched_standalone():
+            try:
+                input("\nDone. Press Enter to close...")
+            except (EOFError, KeyboardInterrupt):
+                pass
+        return
+
+    # No files given: interactive loop that KEEPS THE WINDOW OPEN. Drop a file
+    # (or paste a path), read the output, drop another; blank line / Ctrl-C quits.
+    print("charset_mask - drag a .hc22000 file into this window (or paste its path),"
+          " then Enter.")
+    print("Blank line or Ctrl-C to quit."
+          + ("   [positional mode ON]" if positional else ""))
+    while True:
+        try:
+            line = input("\n> ").strip().strip('"')
+        except (EOFError, KeyboardInterrupt):
+            print()
+            break
+        if not line:
+            break
+        _run([line], positional)
 
 
 if __name__ == "__main__":
