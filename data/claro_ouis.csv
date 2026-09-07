@@ -172,3 +172,11 @@ C8:EA:F8,ZTE,
 2C:95:69,Arris/CommScope,
 C0:BC:9A,Huawei,
 60:14:66,ZTE,
+
+# 2026-09-07 3-mile warwalk - 6 new OUIs, IEEE-attributed (4 Huawei)
+50:6F:0C,Sagemcom,
+6C:E8:74,Huawei,
+B0:76:1B,Huawei,
+EC:C0:1B,Huawei,
+94:00:B0,Huawei,
+D4:E2:CB,Vantiva/Technicolor,
