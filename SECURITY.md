@@ -17,6 +17,9 @@ and how to report things.
 - The residual risk is entirely the **installed base of older units still on
   their factory-default SSID *and* password**. Changing either removes the
   exposure — that is the fix, and it is in the owner's hands.
+- **Field prevalence** is summarized in [STATS.md](STATS.md) — aggregate counts
+  from a metropolitan WiGLE survey (no credentials, BSSIDs, or GPS) showing how
+  much of the legacy installed base still broadcasts a derivable factory default.
 
 ## What this project deliberately does NOT publish
 

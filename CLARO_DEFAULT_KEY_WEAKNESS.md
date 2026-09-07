@@ -41,6 +41,9 @@ force against a captured handshake, resolved offline in well under a second.
 
 A 24-to-32-bit collapse, for free, just by being in radio range.
 
+See **[STATS.md](STATS.md)** for how common this is in the field — aggregate
+prevalence from a metropolitan WiGLE survey (counts only, no sensitive data).
+
 ---
 
 ## 2. Quick command

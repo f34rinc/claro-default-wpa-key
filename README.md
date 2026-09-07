@@ -267,6 +267,10 @@ private and git-ignored). If you're an affected owner, Claro, or a hardware
 vendor, see [SECURITY.md](SECURITY.md) for the responsible-disclosure posture and
 contact paths (including [CERT.br](https://www.cert.br/)).
 
+**Field prevalence:** aggregate counts from a metropolitan WiGLE survey — how much
+of the legacy installed base still broadcasts a derivable factory default — are
+summarized in **[STATS.md](STATS.md)** (counts only; no credentials, BSSIDs, or GPS).
+
 ## License
 
 [MIT](LICENSE) — © 2026 F34RInc. See the file for the full text.
