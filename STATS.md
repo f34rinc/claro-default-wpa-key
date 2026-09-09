@@ -6,41 +6,45 @@ the field. **Counts only** — this file contains no passwords, no BSSIDs, and n
 GPS coordinates. Generated with [`tools/analyze_wigle.py`](tools/analyze_wigle.py)
 from a local WiGLE database export.
 
-_Snapshot: 2026-09-07._
+_Snapshot: 2026-09-08._
 
 ## Dataset
 
 | Metric | Value |
 |---|--:|
-| Unique APs surveyed | 56,562 |
-| OUI vendor blocks catalogued | 160 |
-| Distinct hardware vendors | 15 |
+| Unique APs surveyed | 74,797 |
+| OUI vendor blocks catalogued | 168 |
+| Distinct hardware vendors | 16 |
 
 ## Claro gateway population
 
 | Metric | Count |
 |---|--:|
-| Default `CLARO_` BSSIDs | 2,214 |
-| &nbsp;&nbsp;— primary (physical gateways) | 1,637 |
-| &nbsp;&nbsp;— secondary / virtual (locally-administered) | 577 |
-| Renamed `CLARO_` (non-default SSID) | 187 |
+| Default `CLARO_` BSSIDs | 2,826 |
+| &nbsp;&nbsp;— primary (physical gateways) | 2,071 |
+| &nbsp;&nbsp;— secondary / virtual (locally-administered) | 755 |
+| Renamed `CLARO_` (non-default SSID) | 283 |
 
 ## Derivability — the core finding
 
-Every default-SSID gateway observed is recoverable straight from the broadcast
-beacon, with no handshake required.
+Nearly every default-SSID gateway observed is recoverable straight from the
+broadcast beacon, with no handshake required.
 
 | Class | Count | Share |
 |---|--:|--:|
-| single-OUI — 1 guess off the beacon | 2,211 | 99.9% |
-| full-8 in SSID — key fully determined | 3 | 0.1% |
-| split-OUI — 256-guess vs a handshake | 0 | 0.0% |
-| **Derivable off the beacon** | **2,214** | **100%** |
+| single-OUI — 1 guess off the beacon | 2,821 | 99.8% |
+| full-8 in SSID — key fully determined | 4 | 0.1% |
+| split-OUI — 256-guess vs a handshake | 1 | 0.0% |
+| **Derivable off the beacon** | **2,825** | **99.96%** |
 
-2,125 of the single-OUI gateways had a BSSID tail that differs from the SSID tail
+2,701 of the single-OUI gateways had a BSSID tail that differs from the SSID tail
 (the benign same-OUI "Compal case") — still a single guess, because the leading
-byte is BSSID octet 3. 577 were secondary/virtual radios: the locally-administered
+byte is BSSID octet 3. 755 were secondary/virtual radios: the locally-administered
 bit flips octet 1, never octet 3, so the leading byte still reads off the beacon.
+
+The lone exception is a single **split-OUI** unit now seen on a default SSID —
+recoverable, but as a sub-second 256-guess against a captured handshake rather than
+directly off the beacon. It is the first non-renamed split unit in the survey.
 
 > **Note on split-OUI.** This population counts default-SSID gateways only. An
 > ARRIS/CommScope split unit that has been renamed drops out of the count entirely,
@@ -52,42 +56,43 @@ bit flips octet 1, never octet 3, so the leading byte still reads off the beacon
 
 | Variant | Count |
 |---|--:|
-| no-band | 681 |
-| banded 5 GHz | 598 |
-| banded 2.4 GHz | 471 |
-| mesh backhaul (`-5G-BH`) | 407 |
-| IoT (`-IoT`) | 57 |
+| no-band | 834 |
+| banded 5 GHz | 753 |
+| banded 2.4 GHz | 624 |
+| mesh backhaul (`-5G-BH`) | 539 |
+| IoT (`-IoT`) | 76 |
 
 ## Split-OUI hardware (ARRIS/CommScope)
 
-4 BSSIDs were seen on the catalogued `C8:52:61` router block — all of them renamed,
-and none on a default `CLARO_` SSID. Because only that one block is catalogued as
-split, and split cannot be seen from a beacon, this is a floor, not a full count.
+5 BSSIDs were seen on the catalogued `C8:52:61` router block — 1 on a default
+`CLARO_` SSID and 4 renamed. Because only that one block is catalogued as split,
+and split cannot be seen from a beacon, this is a floor, not a full count.
 
-## OUI vendor table (160 blocks)
+## OUI vendor table (168 blocks)
 
 One vendor holds many OUI blocks: each block covers ~16.7M addresses, so
 high-volume makers exhaust blocks and register more, and acquisitions carry legacy
-blocks (Vantiva is the renamed Technicolor; CommScope acquired ARRIS). So 160
-blocks map to only 15 actual companies.
+blocks (Vantiva is the renamed Technicolor; CommScope acquired ARRIS). So 168
+blocks map to only 16 actual companies.
 
 | Vendor | Blocks |
 |---|--:|
-| Sagemcom | 53 |
-| ZTE | 35 |
+| Sagemcom | 54 |
+| ZTE | 36 |
 | Vantiva/Technicolor | 27 |
-| Huawei | 16 |
+| Huawei | 18 |
 | Kaon | 7 |
 | Arris/CommScope | 6 |
-| TP-Link | 4 |
+| TP-Link | 5 |
+| Intelbras | 4 |
 | Humax | 3 |
-| Intelbras | 2 |
 | Compal | 2 |
 | D-Link | 1 |
 | Hitron | 1 |
 | MitraStar | 1 |
 | SEI Robotics | 1 |
 | Tellescom | 1 |
+| Epigram/Broadcom | 1 |
 
 ---
 
