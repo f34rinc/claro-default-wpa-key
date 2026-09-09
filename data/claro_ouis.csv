@@ -180,3 +180,13 @@ B0:76:1B,Huawei,
 EC:C0:1B,Huawei,
 94:00:B0,Huawei,
 D4:E2:CB,Vantiva/Technicolor,
+
+# 2026-09-08 40km round trip - 8 new OUIs, IEEE-attributed
+FC:73:FB,Huawei,
+54:BA:D9,Intelbras,
+D4:46:49,Huawei,
+78:65:59,Sagemcom,
+00:90:4C,Epigram/Broadcom,
+98:2A:0A,Intelbras,
+B4:1C:30,ZTE,
+EC:75:0C,TP-Link,
