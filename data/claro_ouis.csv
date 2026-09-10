@@ -190,3 +190,8 @@ D4:46:49,Huawei,
 98:2A:0A,Intelbras,
 B4:1C:30,ZTE,
 EC:75:0C,TP-Link,
+
+# 2026-09-10 second-collector run, new district (school area) - 3 new OUIs, IEEE-attributed
+5C:64:7A,Huawei,
+A8:6E:84,TP-Link,
+34:5D:9E,Sagemcom,
