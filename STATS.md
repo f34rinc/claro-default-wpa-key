@@ -4,26 +4,26 @@ Aggregate statistics from a metropolitan WiGLE survey, showing how common
 factory-default (and therefore derivable-key) Claro cable/fibre gateways are in
 the field. **Counts only** — this file contains no passwords, no BSSIDs, and no
 GPS coordinates. Generated with [`tools/analyze_wigle.py`](tools/analyze_wigle.py)
-from a local WiGLE database export.
+from local WiGLE database exports (two collectors, one metro area).
 
-_Snapshot: 2026-09-08._
+_Snapshot: 2026-09-10._
 
 ## Dataset
 
 | Metric | Value |
 |---|--:|
-| Unique APs surveyed | 74,797 |
-| OUI vendor blocks catalogued | 168 |
+| Unique APs surveyed | 97,660 |
+| OUI vendor blocks catalogued | 171 |
 | Distinct hardware vendors | 16 |
 
 ## Claro gateway population
 
 | Metric | Count |
 |---|--:|
-| Default `CLARO_` BSSIDs | 2,826 |
-| &nbsp;&nbsp;— primary (physical gateways) | 2,071 |
-| &nbsp;&nbsp;— secondary / virtual (locally-administered) | 755 |
-| Renamed `CLARO_` (non-default SSID) | 283 |
+| Default `CLARO_` BSSIDs | 3,099 |
+| &nbsp;&nbsp;— primary (physical gateways) | 2,286 |
+| &nbsp;&nbsp;— secondary / virtual (locally-administered) | 813 |
+| Renamed `CLARO_` (non-default SSID) | 305 |
 
 ## Derivability — the core finding
 
@@ -32,19 +32,19 @@ broadcast beacon, with no handshake required.
 
 | Class | Count | Share |
 |---|--:|--:|
-| single-OUI — 1 guess off the beacon | 2,821 | 99.8% |
+| single-OUI — 1 guess off the beacon | 3,094 | 99.8% |
 | full-8 in SSID — key fully determined | 4 | 0.1% |
 | split-OUI — 256-guess vs a handshake | 1 | 0.0% |
-| **Derivable off the beacon** | **2,825** | **99.96%** |
+| **Derivable off the beacon** | **3,098** | **99.97%** |
 
-2,701 of the single-OUI gateways had a BSSID tail that differs from the SSID tail
+2,953 of the single-OUI gateways had a BSSID tail that differs from the SSID tail
 (the benign same-OUI "Compal case") — still a single guess, because the leading
-byte is BSSID octet 3. 755 were secondary/virtual radios: the locally-administered
+byte is BSSID octet 3. 813 were secondary/virtual radios: the locally-administered
 bit flips octet 1, never octet 3, so the leading byte still reads off the beacon.
 
-The lone exception is a single **split-OUI** unit now seen on a default SSID —
+The lone exception is a single **split-OUI** unit seen on a default SSID —
 recoverable, but as a sub-second 256-guess against a captured handshake rather than
-directly off the beacon. It is the first non-renamed split unit in the survey.
+directly off the beacon.
 
 > **Note on split-OUI.** This population counts default-SSID gateways only. An
 > ARRIS/CommScope split unit that has been renamed drops out of the count entirely,
@@ -56,11 +56,11 @@ directly off the beacon. It is the first non-renamed split unit in the survey.
 
 | Variant | Count |
 |---|--:|
-| no-band | 834 |
-| banded 5 GHz | 753 |
-| banded 2.4 GHz | 624 |
-| mesh backhaul (`-5G-BH`) | 539 |
-| IoT (`-IoT`) | 76 |
+| no-band | 909 |
+| banded 5 GHz | 834 |
+| banded 2.4 GHz | 689 |
+| mesh backhaul (`-5G-BH`) | 590 |
+| IoT (`-IoT`) | 77 |
 
 ## Split-OUI hardware (ARRIS/CommScope)
 
@@ -68,22 +68,22 @@ directly off the beacon. It is the first non-renamed split unit in the survey.
 `CLARO_` SSID and 4 renamed. Because only that one block is catalogued as split,
 and split cannot be seen from a beacon, this is a floor, not a full count.
 
-## OUI vendor table (168 blocks)
+## OUI vendor table (171 blocks)
 
 One vendor holds many OUI blocks: each block covers ~16.7M addresses, so
 high-volume makers exhaust blocks and register more, and acquisitions carry legacy
-blocks (Vantiva is the renamed Technicolor; CommScope acquired ARRIS). So 168
+blocks (Vantiva is the renamed Technicolor; CommScope acquired ARRIS). So 171
 blocks map to only 16 actual companies.
 
 | Vendor | Blocks |
 |---|--:|
-| Sagemcom | 54 |
+| Sagemcom | 55 |
 | ZTE | 36 |
 | Vantiva/Technicolor | 27 |
-| Huawei | 18 |
+| Huawei | 19 |
 | Kaon | 7 |
 | Arris/CommScope | 6 |
-| TP-Link | 5 |
+| TP-Link | 6 |
 | Intelbras | 4 |
 | Humax | 3 |
 | Compal | 2 |
