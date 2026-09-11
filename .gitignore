@@ -9,6 +9,16 @@
 # Local scratch for fabricated test captures — never published, even though fake.
 samples/
 
+# utils/ doubles as a local scratchpad for hashcat testing — stray capture/scratch
+# files land there (handshake lines pasted into a .txt, dumps, exports). Only source
+# is tracked (charset_mask.py), so ignoring these data/scratch types never hits a .py.
+# (*.hc22000/.pcap/.log etc. are already covered globally above.)
+utils/*.txt
+utils/*.csv
+utils/*.out
+utils/*.tmp
+utils/*.dat
+
 # hashcat artifacts
 *.potfile
 hashcat.potfile
