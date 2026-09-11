@@ -26,7 +26,7 @@ below before opening anything.
 Do **not** put any of the following in an issue, a PR, or the data file — they
 are real credential material or personally-identifying:
 
-- Wi-Fi **passwords** / recovered keys (including `claro_cracked.txt` rows).
+- Wi-Fi **passwords** / recovered keys (including `claro_cracked.jsonl` rows).
 - Packet **captures** — `.hc22000`, `.pcap`, `.pcapng`, `.cap`, handshakes.
 - The **full BSSID *and* SSID of a specific home network** together (that pair
   identifies someone's network). An OUI prefix alone is fine; a full address

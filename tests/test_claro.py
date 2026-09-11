@@ -10,6 +10,7 @@ here is fabricated.
 """
 import os
 import sys
+import json
 import tempfile
 import unittest
 
@@ -135,6 +136,69 @@ class TestCharsetMaskPositional(unittest.TestCase):
         cand = cm.positional_candidates("a1b2c3250b33", "CLARO_5G250B2E", 8)
         key = "C3250B2E"                                         # C3 + 250B2E
         self.assertTrue(all(key[i] in cand[i] for i in range(8)))
+
+
+class TestCrackLog(unittest.TestCase):
+    def test_band_token(self):
+        self.assertEqual(k.band_token("CLARO_2G3A9C2D"), "2.4G")
+        self.assertEqual(k.band_token("CLARO_5G3A9C2D"), "5G")
+        self.assertEqual(k.band_token("CLARO_3A9C2D"), "no-band")
+        self.assertEqual(k.band_token("CLARO_ABCDEF-5G-BH"), "mesh-BH")
+        self.assertEqual(k.band_token("CLARO_112233-IoT"), "IoT")
+
+    def test_crack_record_fields(self):
+        # Fabricated single-OUI Kaon gateway: BSSID octet 3 = EF, SSID tail 3A9C2D.
+        net = {"essid": "CLARO_5G3A9C2D", "bssid": "743aef3a9c2d"}
+        rec = k.crack_record(net, "EF3A9C2D", cls="single-OUI",
+                             source="beacon-derived", confirmed=True,
+                             attempts=1, keyspace=1, capture="/tmp/test.hc22000")
+        self.assertEqual(rec["oui"], "74:3A:EF")
+        self.assertEqual(rec["vendor"], "Kaon")
+        self.assertEqual(rec["band"], "5G")
+        self.assertEqual(rec["leading_byte"], "EF")
+        self.assertEqual(rec["attempts"], 1)
+        self.assertEqual(rec["capture"], "test.hc22000")   # basename only, no path
+        self.assertFalse(rec["compal_case"])               # BSSID tail == SSID tail
+
+    def test_crack_record_compal_case(self):
+        # Same OUI, BSSID tail (3A9C2E) differs from SSID tail (3A9C2D) -> Compal case.
+        net = {"essid": "CLARO_5G3A9C2D", "bssid": "743aef3a9c2e"}
+        rec = k.crack_record(net, "EF3A9C2D", cls="single-OUI",
+                             source="beacon-derived", confirmed=True,
+                             attempts=1, keyspace=1, capture="x.hc22000")
+        self.assertTrue(rec["compal_case"])
+
+    def test_compal_case_only_for_single_oui(self):
+        # full8 / split-OUI: the Compal comparison is meaningless -> null, never a bool.
+        net = {"essid": "CLARO_2GAB12CD34", "bssid": "d83139ab12cd"}
+        full8 = k.crack_record(net, "AB12CD34", cls="full8", source="beacon-derived",
+                               confirmed=True, attempts=1, keyspace=1, capture="c")
+        self.assertIsNone(full8["compal_case"])
+        split = k.crack_record({"essid": "CLARO_5G7A79B5", "bssid": "c852617a79b5"},
+                               "437A79B5", cls="split-OUI", source="handshake-brute",
+                               confirmed=True, attempts=68, keyspace=256, capture="c")
+        self.assertIsNone(split["compal_case"])
+
+    def test_save_crack_dedup(self):
+        # Point the log at a temp file; identical records must not pile up (dedup, C).
+        tmp = tempfile.mkdtemp()
+        old_file, old_save = k.CRACK_FILE, k.SAVE_CRACKS
+        k.CRACK_FILE, k.SAVE_CRACKS = os.path.join(tmp, "claro_cracked.jsonl"), True
+        try:
+            net = {"essid": "CLARO_5G3A9C2D", "bssid": "743aef3a9c2d"}
+            rec = k.crack_record(net, "EF3A9C2D", cls="single-OUI",
+                                 source="beacon-derived", confirmed=True,
+                                 attempts=1, keyspace=1, capture="a.hc22000")
+            self.assertEqual(k.save_crack(rec)[0], "saved")
+            self.assertEqual(k.save_crack(rec)[0], "duplicate")   # same identity -> skipped
+            other = dict(rec, password="AA3A9C2D")                # different key -> new row
+            self.assertEqual(k.save_crack(other)[0], "saved")
+            with open(k.CRACK_FILE, encoding="utf-8") as fh:
+                lines = [l for l in fh if l.strip()]
+            self.assertEqual(len(lines), 2)
+            self.assertEqual(json.loads(lines[0])["password"], "EF3A9C2D")
+        finally:
+            k.CRACK_FILE, k.SAVE_CRACKS = old_file, old_save
 
 
 if __name__ == "__main__":

