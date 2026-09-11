@@ -28,10 +28,10 @@ builds the `?H?H<tail>` mask, and (optionally) runs hashcat.
 > affected — see *Affected devices* below. A `CLARO_<hex>` SSID means *worth
 > testing*, never *guaranteed vulnerable*.
 
-For the full write-up of *why* the scheme is weak, see
-[CLARO_DEFAULT_KEY_WEAKNESS.md](CLARO_DEFAULT_KEY_WEAKNESS.md) (renders on GitHub).
-An interactive visual version is live at
-**[legoclan.com/Claro/weakness.html](https://legoclan.com/Claro/weakness.html)**
+For the full write-up of *why* the scheme is weak, see the technical document —
+**🇺🇸 [English](CLARO_DEFAULT_KEY_WEAKNESS.md)** · **🇧🇷 [Português](CLARO_DEFAULT_KEY_WEAKNESS.pt.md)**
+(both render on GitHub). An interactive visual version is live at
+**🇺🇸 [weakness.html](https://legoclan.com/Claro/weakness.html)** · **🇧🇷 [weakness.pt.html](https://legoclan.com/Claro/weakness.pt.html)**
 (the `docs/` folder holds the source).
 
 ---
