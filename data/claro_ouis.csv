@@ -195,3 +195,7 @@ EC:75:0C,TP-Link,
 5C:64:7A,Huawei,
 A8:6E:84,TP-Link,
 34:5D:9E,Sagemcom,
+
+# 2026-09-11 second-collector run (continued) - 2 new OUIs, IEEE-attributed
+68:77:DA,ZTE,
+E4:66:AB,ZTE,
