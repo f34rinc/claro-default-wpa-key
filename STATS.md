@@ -12,7 +12,7 @@ _Snapshot: 2026-09-11._
 
 | Metric | Value |
 |---|--:|
-| Unique APs surveyed | 102,448 |
+| Unique APs surveyed | 111,052 |
 | OUI vendor blocks catalogued | 173 |
 | Distinct hardware vendors | 16 |
 
@@ -20,10 +20,10 @@ _Snapshot: 2026-09-11._
 
 | Metric | Count |
 |---|--:|
-| Default `CLARO_` BSSIDs | 3,145 |
-| &nbsp;&nbsp;— primary (physical gateways) | 2,316 |
-| &nbsp;&nbsp;— secondary / virtual (locally-administered) | 829 |
-| Renamed `CLARO_` (non-default SSID) | 313 |
+| Default `CLARO_` BSSIDs | 3,182 |
+| &nbsp;&nbsp;— primary (physical gateways) | 2,338 |
+| &nbsp;&nbsp;— secondary / virtual (locally-administered) | 844 |
+| Renamed `CLARO_` (non-default SSID) | 314 |
 
 ## Derivability — the core finding
 
@@ -32,14 +32,14 @@ broadcast beacon, with no handshake required.
 
 | Class | Count | Share |
 |---|--:|--:|
-| single-OUI — 1 guess off the beacon | 3,140 | 99.8% |
+| single-OUI — 1 guess off the beacon | 3,177 | 99.8% |
 | full-8 in SSID — key fully determined | 4 | 0.1% |
 | split-OUI — 256-guess vs a handshake | 1 | 0.0% |
-| **Derivable off the beacon** | **3,144** | **99.97%** |
+| **Derivable off the beacon** | **3,181** | **99.97%** |
 
-2,993 of the single-OUI gateways had a BSSID tail that differs from the SSID tail
+3,025 of the single-OUI gateways had a BSSID tail that differs from the SSID tail
 (the benign same-OUI "Compal case") — still a single guess, because the leading
-byte is BSSID octet 3. 829 were secondary/virtual radios: the locally-administered
+byte is BSSID octet 3. 844 were secondary/virtual radios: the locally-administered
 bit flips octet 1, never octet 3, so the leading byte still reads off the beacon.
 
 The lone exception is a single **split-OUI** unit seen on a default SSID —
@@ -56,11 +56,11 @@ directly off the beacon.
 
 | Variant | Count |
 |---|--:|
-| no-band | 929 |
-| banded 5 GHz | 842 |
-| banded 2.4 GHz | 696 |
-| mesh backhaul (`-5G-BH`) | 596 |
-| IoT (`-IoT`) | 82 |
+| no-band | 938 |
+| banded 5 GHz | 851 |
+| banded 2.4 GHz | 703 |
+| mesh backhaul (`-5G-BH`) | 604 |
+| IoT (`-IoT`) | 86 |
 
 ## Split-OUI hardware (ARRIS/CommScope)
 
